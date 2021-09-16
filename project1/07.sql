@@ -1,12 +1,10 @@
-SELECT City.name, CatchedPokemon.nickname
+SELECT CityMaxLevel.name, CatchedPokemon.nickname
+FROM
+(SELECT City.name AS name, MAX(CatchedPokemon.level) AS maxlevel
 FROM CatchedPokemon
 JOIN Trainer ON Trainer.id = CatchedPokemon.owner_id
 JOIN City ON City.name = Trainer.hometown
-WHERE CatchedPokemon.level >= ALL(
-SELECT CP.level
-FROM CatchedPokemon AS CP
-JOIN Trainer AS T ON T.id = CP.owner_id
-JOIN City AS C ON C.name = T.hometown
-WHERE City.name = C.name 
-)
-ORDER BY City.name
+GROUP BY City.name) AS CityMaxLevel
+JOIN Trainer ON Trainer.hometown = CityMaxLevel.name
+JOIN CatchedPokemon ON Trainer.id = CatchedPokemon.owner_id AND CatchedPokemon.level = CityMaxLevel.maxlevel
+ORDER BY CityMaxLevel.name
