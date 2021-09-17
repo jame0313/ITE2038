@@ -1,6 +1,9 @@
-SELECT City.name, COUNT(*)
+SELECT City.name
 FROM City
 JOIN Trainer ON City.name = Trainer.hometown
 GROUP BY City.name
-ORDER BY COUNT(*) DESC
-LIMIT 1
+HAVING COUNT(*)>=ALL(SELECT COUNT(*)
+FROM City
+JOIN Trainer ON City.name = Trainer.hometown
+GROUP BY City.name
+ORDER BY COUNT(*) DESC)
