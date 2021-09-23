@@ -7,4 +7,4 @@ JOIN City ON City.name = Trainer.hometown
 GROUP BY City.name) AS CityMaxLevel
 JOIN Trainer ON Trainer.hometown = CityMaxLevel.name
 JOIN CatchedPokemon ON Trainer.id = CatchedPokemon.owner_id AND CatchedPokemon.level = CityMaxLevel.maxlevel
-ORDER BY CatchedPokemon.nickname;;
+ORDER BY CatchedPokemon.nickname;
