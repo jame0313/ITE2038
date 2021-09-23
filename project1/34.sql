@@ -1,3 +1,4 @@
+;
 SELECT Third_Pokemon.name
 FROM Pokemon
 JOIN Evolution AS First_Evolution ON Pokemon.name = 'Charmander' AND First_Evolution.before_id = Pokemon.id

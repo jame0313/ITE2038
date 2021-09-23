@@ -1,3 +1,4 @@
+;
 SELECT COUNT(*)
 FROM CatchedPokemon
 JOIN Pokemon ON CatchedPokemon.pid = Pokemon.id

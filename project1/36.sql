@@ -1,3 +1,4 @@
+;
 SELECT Pokemon.name
 From Pokemon
 LEFT OUTER JOIN Evolution ON Evolution.before_id = Pokemon.id

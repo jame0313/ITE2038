@@ -1,3 +1,4 @@
+;
 SELECT Trainer.name, AVG(CatchedPokemon.level)
 FROM Trainer
 JOIN Gym ON Trainer.id = Gym.leader_id

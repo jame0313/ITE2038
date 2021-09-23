@@ -1,3 +1,4 @@
+;
 SELECT DISTINCT Trainer.name
 From Trainer
 JOIN CatchedPokemon ON Trainer.id = CatchedPokemon.owner_id

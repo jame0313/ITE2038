@@ -1,3 +1,4 @@
+;
 SELECT OneTrainer.name, Pokemon.name, COUNT(*)
 FROM
 (SELECT Trainer.id AS id, Trainer.name AS name

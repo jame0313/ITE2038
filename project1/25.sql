@@ -1,3 +1,4 @@
+;
 SELECT Second_Pokemon.name
 FROM Pokemon AS Second_Pokemon
 JOIN Evolution AS First_Evolution ON Second_Pokemon.id = First_Evolution.after_id

@@ -1,3 +1,4 @@
+;
 SELECT Trainer.name, SUM(CatchedPokemon.level) AS TotalLevel
 FROM Trainer
 JOIN CatchedPokemon ON Trainer.id = CatchedPokemon.owner_id

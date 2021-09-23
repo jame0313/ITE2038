@@ -1,3 +1,4 @@
+;
 SELECT CatchedPokemon.nickname
 FROM Trainer
 JOIN Gym ON Gym.city = 'Sangnok CIty' AND Trainer.id = Gym.leader_id

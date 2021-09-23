@@ -1,3 +1,4 @@
+;
 SELECT CatchedPokemon.nickname
 FROM
 (SELECT City.name AS name, MAX(CatchedPokemon.level) AS maxlevel

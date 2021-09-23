@@ -1,3 +1,4 @@
+;
 SELECT City.name
 FROM City
 JOIN Trainer ON City.name = Trainer.hometown

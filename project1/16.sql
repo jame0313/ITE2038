@@ -1,3 +1,4 @@
+;
 SELECT Trainer.name
 FROM Gym
 JOIN Trainer ON Gym.leader_id = Trainer.id

@@ -1,3 +1,4 @@
+;
 SELECT CatchedPokemon.nickname
 FROM CatchedPokemon
 WHERE CatchedPokemon.level >= 50

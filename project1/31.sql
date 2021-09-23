@@ -1,3 +1,4 @@
+;
 SELECT Pokemon.name
 FROM Pokemon
 JOIN CatchedPokemon ON Pokemon.id = CatchedPokemon.pid

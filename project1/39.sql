@@ -1,3 +1,4 @@
+;
 SELECT DISTINCT Pokemon.name
 From Gym
 JOIN Trainer ON Gym.city = 'Rainbow City' AND Trainer.id = Gym.leader_id

@@ -1,3 +1,4 @@
+;
 SELECT Trainer.name, CatchedPokemon.nickname
 FROM
 (SELECT CatchedPokemon.owner_id AS id, MAX(CatchedPokemon.level) AS maxlevel
