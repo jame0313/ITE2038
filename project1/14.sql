@@ -1,4 +1,3 @@
-;
 SELECT City.name
 FROM City
 JOIN Trainer ON City.name = Trainer.hometown
@@ -7,4 +6,4 @@ HAVING COUNT(*)>=ALL(SELECT COUNT(*)
 FROM City
 JOIN Trainer ON City.name = Trainer.hometown
 GROUP BY City.name
-ORDER BY COUNT(*) DESC)
+ORDER BY COUNT(*) DESC);

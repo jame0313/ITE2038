@@ -1,4 +1,3 @@
-;
 SELECT COUNT(*)
 FROM Pokemon
-WHERE Pokemon.type <> 'Fire'
+WHERE Pokemon.type <> 'Fire';

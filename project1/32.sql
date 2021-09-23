@@ -1,4 +1,3 @@
-;
 SELECT OneTrainer.name, Pokemon.name, COUNT(*)
 FROM
 (SELECT Trainer.id AS id, Trainer.name AS name
@@ -11,4 +10,4 @@ HAVING COUNT(DISTINCT Pokemon.type) = 1
 JOIN CatchedPokemon ON OneTrainer.id = CatchedPokemon.owner_id
 JOIN Pokemon ON CatchedPokemon.pid = Pokemon.id
 GROUP BY OneTrainer.id, OneTrainer.name, Pokemon.id, Pokemon.name
-ORDER BY OneTrainer.name
+ORDER BY OneTrainer.name;
