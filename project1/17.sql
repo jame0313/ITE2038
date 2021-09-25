@@ -1,4 +1,3 @@
 SELECT AVG(CatchedPokemon.level)
 FROM CatchedPokemon
-JOIN Pokemon ON CatchedPokemon.pid = Pokemon.id
-WHERE Pokemon.type = 'water';
+JOIN Pokemon ON Pokemon.type = 'Water' AND CatchedPokemon.pid = Pokemon.id;
