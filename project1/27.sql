@@ -1,4 +1,4 @@
-SELECT CatchedPokemon.nickname
+SELECT CatchedPokemon.nickname
 FROM CatchedPokemon
-JOIN Trainer ON CatchedPokemon.level >= 40 AND Trainer.id >= 5 AND Trainer.id = CatchedPokemon.owner_id
+WHERE CatchedPokemon.level >= 40 AND CatchedPokemon.owner_id >= 5
 ORDER BY CatchedPokemon.nickname;
