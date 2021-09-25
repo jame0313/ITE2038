@@ -1,4 +1,4 @@
 SELECT Pokemon.name
 FROM Pokemon
-WHERE Pokemon.type = 'grass'
+WHERE Pokemon.type = 'Grass'
 ORDER BY Pokemon.name;
