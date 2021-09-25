@@ -1,7 +1,5 @@
 SELECT CatchedPokemon.nickname
-FROM Trainer
-JOIN Gym ON Gym.city = 'Sangnok CIty' AND Trainer.id = Gym.leader_id
-JOIN CatchedPokemon ON Trainer.id = CatchedPokemon.owner_id
-JOIN Pokemon ON CatchedPokemon.pid = Pokemon.id
-WHERE Pokemon.type = 'water'
+FROM Gym
+JOIN CatchedPokemon ON Gym.city = 'Sangnok City' AND Gym.leader_id = CatchedPokemon.owner_id
+JOIN Pokemon ON CatchedPokemon.pid = Pokemon.id AND Pokemon.type = 'Water'
 ORDER BY CatchedPokemon.nickname;
