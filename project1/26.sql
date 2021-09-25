@@ -6,5 +6,4 @@ HAVING SUM(CatchedPokemon.level) >= ALL(
 SELECT SUM(CatchedPokemon.level) AS totalLevel
 FROM Trainer
 JOIN CatchedPokemon ON Trainer.id = CatchedPokemon.owner_id
-GROUP BY Trainer.id, Trainer.name
-ORDER BY totalLevel DESC);
+GROUP BY Trainer.id, Trainer.name);
