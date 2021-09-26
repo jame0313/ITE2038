@@ -126,4 +126,6 @@ void file_close_database_file(){
     for(auto& it : DSM::DB_FILE_MAP){
         if(it.second) fclose(it.second);
     }
+
+    DSM::DB_FILE_MAP.clear();
 }
