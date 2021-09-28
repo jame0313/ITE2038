@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
-project(google_unitest)
+project(project2)
 
+# GoogleTest requires at least C++11
 set(CMAKE_CXX_STANDARD 17)
 
 include(FetchContent)
@@ -16,14 +17,24 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+include_directories(
+    ./include
+)
+
+add_library(
+    disk_space_manager
+    ./src/file.cpp
+)
+
 add_executable(
     basic_test
-    basic_test.cc
+    ./googletest/basic_test.cc
 )
 
 target_link_libraries(
     basic_test
     gtest_main
+    disk_space_manager
 )
 
 include(GoogleTest)
