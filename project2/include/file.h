@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <set>
+#include <map>
 
 #define PAGE_SIZE 4096
 #define DEFAULT_PAGE_NUMBER 2560
@@ -18,6 +19,22 @@ struct page_t {
 };
 
 namespace DSM{
+    struct str_compare{
+        bool operator()(const char *str1, const char *str2) const;
+    };
+
+    union _dsm_page_t {
+        struct page_t _raw_page;
+        struct header_page_t{
+            pagenum_t free_page_number;
+            uint64_t number_of_pages;
+            uint8_t __reserved__[PAGE_SIZE - sizeof(pagenum_t) - sizeof(uint64_t)];
+        } _header_page;
+        struct free_page_t{
+            pagenum_t nxt_free_page_number;
+            uint8_t __reserved__[PAGE_SIZE - sizeof(pagenum_t)];
+        } _free_page;
+    };
 
     bool is_file_opened(int fd);
     bool is_pagenum_valid(int fd, pagenum_t pagenum);
@@ -25,13 +42,8 @@ namespace DSM{
     void init_header_page(page_t* pg, pagenum_t nxt_page_number,  uint64_t number_of_pages);
     void init_free_page(page_t* pg, pagenum_t nxt_page_number);
     
-    uint64_t read_data_from_page(const page_t* pg, uint64_t offset);
-    void write_data_from_page(page_t* pg, uint64_t offset, uint64_t val);
-
     void store_page_to_file(int fd, pagenum_t pagenum, const page_t* src);
     void load_page_from_file(int fd, pagenum_t pagenum, page_t* dest);
-
-
 }
 
 // Open existing database file or create one if not existed.
