@@ -1,3 +1,5 @@
 /build
 /googletest/build
+/db_project/build
+/db_project/.vscode
 /.vscode
