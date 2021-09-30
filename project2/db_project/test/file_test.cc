@@ -23,7 +23,9 @@ TEST(DiskSpaceManager, FileInitialization){
 
 
     //end test
+    EXPECT_NE(fcntl64(fd,F_GETFL),-1); //check fd not closed yet
     file_close_database_file();
+    EXPECT_EQ(fcntl64(fd,F_GETFL),-1); //check fd closed properly
     remove(path);
 }
 
