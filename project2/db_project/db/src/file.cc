@@ -82,7 +82,7 @@ int file_open_database_file(const char* path){
         //case when there is no such file
         //need to create and init db file
 
-        //creat file and open file with RW mode and check it's worked properly
+        //create file and open file with RW mode and check it's worked properly
         //permission is 644
         if((fd=open64(path, O_RDWR | O_CREAT, 0644)) == -1){
             throw "file_open_database_file failed";
@@ -192,7 +192,7 @@ void file_free_page(int fd, pagenum_t pagenum){
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
-        throw "pagenum is out of bound in fie_free_page";
+        throw "pagenum is out of bound in file_free_page";
     }
 
     DSM::_dsm_page_t header_page, new_page;
