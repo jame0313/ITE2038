@@ -90,11 +90,6 @@ int file_open_database_file(const char* path){
 
         page_t header_page, free_page;
 
-        //init new db file's header page to point second page(first free page)
-        DSM::init_header_page(&header_page, 1, DEFAULT_PAGE_NUMBER);
-        //save changes in file
-        DSM::store_page_to_file(fd, 0, &header_page);
-
         //init free page lists
         //init second page to last page to point next free page
         for(int i=1;i<DEFAULT_PAGE_NUMBER;i++){
@@ -105,6 +100,11 @@ int file_open_database_file(const char* path){
             DSM::init_free_page(&free_page, i+1>=DEFAULT_PAGE_NUMBER?0:i+1);
             DSM::store_page_to_file(fd, i, &free_page);
         }
+
+        //init new db file's header page to point second page(first free page)
+        DSM::init_header_page(&header_page, 1, DEFAULT_PAGE_NUMBER);
+        //save changes in file
+        DSM::store_page_to_file(fd, 0, &header_page);
     }
 
     //insert file descriptor into set to use for close
@@ -163,9 +163,7 @@ pagenum_t file_alloc_page(int fd){
 
         //init header page to point second new page and grow page size twice
         DSM::init_header_page(&header_page._raw_page, current_number_of_pages+1, current_number_of_pages<<1);
-        //save header file changes in file
-        DSM::store_page_to_file(fd, 0, &header_page._raw_page);
-
+        
         page_t free_page;
 
         //init free page lists
@@ -180,6 +178,8 @@ pagenum_t file_alloc_page(int fd){
             DSM::store_page_to_file(fd,current_number_of_pages + i,&free_page);
         }
 
+        //save header file changes in file after making new free page list
+        DSM::store_page_to_file(fd, 0, &header_page._raw_page);
     }
 
     return nxt_page_number;
@@ -207,8 +207,8 @@ void file_free_page(int fd, pagenum_t pagenum){
     header_page._header_page.free_page_number = pagenum;
     
     //write changes in header page and freed page
-    DSM::store_page_to_file(fd,0,&header_page._raw_page);
     DSM::store_page_to_file(fd,pagenum,&new_page._raw_page);
+    DSM::store_page_to_file(fd,0,&header_page._raw_page);
 }
 
 void file_read_page(int fd, pagenum_t pagenum, page_t* dest){
