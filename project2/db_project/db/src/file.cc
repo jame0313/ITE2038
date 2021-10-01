@@ -197,9 +197,8 @@ void file_free_page(int fd, pagenum_t pagenum){
 
     DSM::_dsm_page_t header_page, new_page;
 
-    //read header page and to be free page
+    //read header page
     DSM::load_page_from_file(fd,0,&header_page._raw_page);
-    DSM::load_page_from_file(fd,pagenum,&new_page._raw_page);
 
     //put the given page in the beginning of the list (LIFO)
     //init new page to point header page's nxt free page value
