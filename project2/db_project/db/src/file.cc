@@ -51,14 +51,18 @@ namespace DSM{
     void store_page_to_file(int fd, pagenum_t pagenum, const page_t* src){
         //write page and sync
         //offset is pagenum * PAGE_SIZE
-        pwrite64(fd,src,sizeof(page_t),pagenum*PAGE_SIZE);
-        fsync(fd);
+        if(pwrite64(fd,src,sizeof(page_t),pagenum*PAGE_SIZE)!=sizeof(page_t)){
+            throw "write system call failed!";
+        }
+        if(fsync(fd)==-1) throw "sync system call failed!";
     }
 
     void load_page_from_file(int fd, pagenum_t pagenum, page_t* dest){
         //read page
         //offset is pagenum * PAGE_SIZE
-        pread64(fd,dest,sizeof(page_t),pagenum*PAGE_SIZE);
+        if(pread64(fd,dest,sizeof(page_t),pagenum*PAGE_SIZE)!=sizeof(page_t)){
+            throw "read system call failed!";
+        }
     }
 }
 
@@ -241,7 +245,11 @@ void file_write_page(int fd, pagenum_t pagenum, const page_t* src){
 
 void file_close_database_file(){
     //close all opened file descriptor
-    for(int fd : DSM::DB_FILE_SET) close(fd);
+    for(int fd : DSM::DB_FILE_SET){
+        if(close(fd)==-1){
+            throw "close db file failed";
+        }
+    }
     //free all path string    
     for(auto &it : DSM::DB_PATH_MAP) free((void*)it.first);
 
