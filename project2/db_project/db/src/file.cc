@@ -2,24 +2,32 @@
 
 namespace DSM{
     
-    std::set<int> DB_FILE_SET; //maintain file descriptor list opened by open api call
-    std::map<char*,int,DSM::str_compare> DB_PATH_MAP; //maintain (realpath,file descriptor) list opened by open api call
-
-    bool str_compare::operator()(const char* str1, const char* str2) const{
-        //alphabetical order
-        return strcmp(str1,str2)<0;
-    }
-    
+    //maintain realpath and file descriptor list opened by open api call
+    //(fd, realpath) pair
+    std::pair<int,char*> DB_FILE_LIST[MAX_DB_FILE_NUMBER];
+    size_t DB_FILE_LIST_SIZE = 0;
 
     bool is_file_opened(int fd){
-        //check fd in the set of DB_FILE_SET
-        return DB_FILE_SET.find(fd)!=DB_FILE_SET.end();
+        //check fd in the DB_FILE_LIST
+        for(int i=0;i<DB_FILE_LIST_SIZE;i++){
+            if(DSM::DB_FILE_LIST[i].first == fd) return true;
+        }
+        return false;
     }
     
+    bool is_path_opened(const char* path){
+        //check path in the DB_FILE_LIST
+        for(int i=0;i<DB_FILE_LIST_SIZE;i++){
+            if(DSM::DB_FILE_LIST[i].first>0 && 
+                DSM::DB_FILE_LIST[i].second && 
+                !strcmp(DSM::DB_FILE_LIST[i].second,path)) return true;
+        }
+        return false;
+    }
 
     bool is_pagenum_valid(int fd, pagenum_t pagenum){
         //check fd is valid first
-        if(DB_FILE_SET.find(fd)==DB_FILE_SET.end()) return false;
+        if(!is_file_opened(fd)) return false;
         if(!pagenum) return true; //header page case
 
         //load header page data to get number of page attrib
@@ -74,7 +82,7 @@ int file_open_database_file(const char* path){
     char* rpath = realpath(path, NULL);
 
     //check this path is already opened by this function
-    if(DSM::DB_PATH_MAP.find(rpath)!=DSM::DB_PATH_MAP.end()){
+    if(DSM::is_path_opened(rpath)){
         throw "this file has been already opened";
     }
 
@@ -111,15 +119,17 @@ int file_open_database_file(const char* path){
         DSM::store_page_to_file(fd, 0, &header_page);
     }
 
-    //insert file descriptor into set to use for close
-    DSM::DB_FILE_SET.insert(fd);
-
     //if create new db file now, make realpath again
     //it should change NULL to realpath string
     if(!rpath) rpath = realpath(path, NULL);
     
-    //insert realpath into map to use for check duplicated open
-    DSM::DB_PATH_MAP[rpath] = fd;
+    //check list overflow
+    if(DSM::DB_FILE_LIST_SIZE >= MAX_DB_FILE_NUMBER)
+        throw "DB FILE LIST IS FULL";
+    
+    //insert file descriptor and realpath into list
+    //to use for check duplicated open and close
+    DSM::DB_FILE_LIST[DSM::DB_FILE_LIST_SIZE++] = {fd, rpath};
     
     return fd;
 }
@@ -245,15 +255,15 @@ void file_write_page(int fd, pagenum_t pagenum, const page_t* src){
 
 void file_close_database_file(){
     //close all opened file descriptor
-    for(int fd : DSM::DB_FILE_SET){
-        if(close(fd)==-1){
+    for(int i=0;i<DSM::DB_FILE_LIST_SIZE;i++){
+        std::pair<int,char*> &it = DSM::DB_FILE_LIST[i];
+        if(close(it.first)==-1){
             throw "close db file failed";
         }
-    }
-    //free all path string    
-    for(auto &it : DSM::DB_PATH_MAP) free((void*)it.first);
+        free((void*)it.second); //free all path string
+        it = {0,0}; //clear element
 
-    //clear set and map
-    DSM::DB_FILE_SET.clear();
-    DSM::DB_PATH_MAP.clear();
+    }
+    //clear list
+    DSM::DB_FILE_LIST_SIZE = 0;
 }

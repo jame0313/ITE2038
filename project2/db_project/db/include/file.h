@@ -5,13 +5,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <set>
-#include <map>
+#include <utility>
 
 #define PAGE_SIZE 4096 //4KiB page
 #define DEFAULT_PAGE_NUMBER 2560 //10MiB INIT DB SIZE
-#define PAGE_NUMBER_OFFSET 0
-#define NUMBER_OF_PAGES_OFFSET 8
+#define MAX_DB_FILE_NUMBER 32 //max number of table
 
 typedef uint64_t pagenum_t; //page_number
 struct page_t {
@@ -39,11 +37,6 @@ void file_close_database_file();
 
 //inner struct and function used in DiskSpaceManager
 namespace DSM{
-    //c-style string compare struct used in c-style string key-valued map structure
-    struct str_compare{
-        bool operator()(const char *str1, const char *str2) const;
-    };
-
     //header page(first page) structure
     struct header_page_t{
         pagenum_t free_page_number; //point to the first free page(head of free page list) or indicate no free page if 0
@@ -66,6 +59,8 @@ namespace DSM{
 
     //check given file descriptor is valid(is this fd opened and not closed by DSM before)
     bool is_file_opened(int fd);
+    //check given path is opened(is this pathed opened and not closed by DSM before)
+    bool is_path_opened(const char* path);
     //check given pagenum is valid in fd(boundary check)
     bool is_pagenum_valid(int fd, pagenum_t pagenum);
 
