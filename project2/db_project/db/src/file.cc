@@ -3,14 +3,14 @@
 namespace DSM{
     
     //maintain realpath and file descriptor list opened by open api call
-    //(fd, realpath) pair
-    std::pair<int,char*> DB_FILE_LIST[MAX_DB_FILE_NUMBER];
+    //(table_id, fd, realpath)
+    table_info DB_FILE_LIST[MAX_DB_FILE_NUMBER];
     size_t DB_FILE_LIST_SIZE = 0;
-
+    
     bool is_file_opened(int fd){
         //check fd in the DB_FILE_LIST
         for(int i=0;i<DB_FILE_LIST_SIZE;i++){
-            if(DSM::DB_FILE_LIST[i].first == fd) return true;
+            if(DSM::DB_FILE_LIST[i].fd == fd) return true;
         }
         return false;
     }
@@ -18,9 +18,9 @@ namespace DSM{
     bool is_path_opened(const char* path){
         //check path in the DB_FILE_LIST
         for(int i=0;i<DB_FILE_LIST_SIZE;i++){
-            if(DSM::DB_FILE_LIST[i].first>0 && 
-                DSM::DB_FILE_LIST[i].second && 
-                !strcmp(DSM::DB_FILE_LIST[i].second,path)) return true;
+            if(DSM::DB_FILE_LIST[i].fd>0 && 
+                DSM::DB_FILE_LIST[i].path && 
+                !strcmp(DSM::DB_FILE_LIST[i].path, path)) return true;
         }
         return false;
     }
@@ -72,14 +72,22 @@ namespace DSM{
             throw "read system call failed!";
         }
     }
+
+    int get_file_descriptor(int64_t table_id){
+        //scan in the DB_FILE_LIST
+        for(int i=0;i<DB_FILE_LIST_SIZE;i++){
+            if(DSM::DB_FILE_LIST[i].table_id == table_id) return DSM::DB_FILE_LIST[i].fd;
+        }
+        return -1;
+    }
 }
 
 
-int file_open_database_file(const char* path){
+int64_t file_open_table_file(const char* pathname){
     //get realpath from given path
     //need memory-free before dump it
     //NULL return value means no existed file
-    char* rpath = realpath(path, NULL);
+    char* rpath = realpath(pathname, NULL);
 
     //check this path is already opened by this function
     if(DSM::is_path_opened(rpath)){
@@ -90,13 +98,13 @@ int file_open_database_file(const char* path){
     int fd;
 
     //open file with RW mode
-    if((fd=open64(path, O_RDWR)) == -1){
+    if((fd=open64(pathname, O_RDWR)) == -1){
         //case when there is no such file
         //need to create and init db file
 
         //create file and open file with RW mode and check it's worked properly
         //permission is 644
-        if((fd=open64(path, O_RDWR | O_CREAT, 0644)) == -1){
+        if((fd=open64(pathname, O_RDWR | O_CREAT, 0644)) == -1){
             throw "file_open_database_file failed";
         }
 
@@ -121,7 +129,7 @@ int file_open_database_file(const char* path){
 
     //if create new db file now, make realpath again
     //it should change NULL to realpath string
-    if(!rpath) rpath = realpath(path, NULL);
+    if(!rpath) rpath = realpath(pathname, NULL);
     
     //check list overflow
     if(DSM::DB_FILE_LIST_SIZE >= MAX_DB_FILE_NUMBER)
@@ -129,15 +137,15 @@ int file_open_database_file(const char* path){
     
     //insert file descriptor and realpath into list
     //to use for check duplicated open and close
-    DSM::DB_FILE_LIST[DSM::DB_FILE_LIST_SIZE++] = {fd, rpath};
+    DSM::DB_FILE_LIST[DSM::DB_FILE_LIST_SIZE++] = {(int64_t)fd, rpath, fd};
     
-    return fd;
+    return (int64_t)fd; //set table_id as fd just for now
 }
 
-pagenum_t file_alloc_page(int fd){
-    //check fd is valid
-    if(!DSM::is_file_opened(fd)){
-        throw "unvalid file descriptor";
+pagenum_t file_alloc_page(int64_t table_id){
+    int fd; //file descriptor
+    if((fd = DSM::get_file_descriptor(table_id)) == -1){
+        throw "unvalid table id";
     }
 
     DSM::_dsm_page_t header_page;
@@ -199,10 +207,10 @@ pagenum_t file_alloc_page(int fd){
     return nxt_page_number;
 }
 
-void file_free_page(int fd, pagenum_t pagenum){
-    //check fd is valid
-    if(!DSM::is_file_opened(fd)){
-        throw "unvalid file descriptor";
+void file_free_page(int64_t table_id, pagenum_t pagenum){
+    int fd; //file descriptor
+    if((fd = DSM::get_file_descriptor(table_id)) == -1){
+        throw "unvalid table id";
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
@@ -225,10 +233,10 @@ void file_free_page(int fd, pagenum_t pagenum){
     DSM::store_page_to_file(fd,0,&header_page._raw_page);
 }
 
-void file_read_page(int fd, pagenum_t pagenum, page_t* dest){
-    //check fd is valid
-    if(!DSM::is_file_opened(fd)){
-        throw "unvalid file descriptor";
+void file_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest){
+    int fd; //file descriptor
+    if((fd = DSM::get_file_descriptor(table_id)) == -1){
+        throw "unvalid table id";
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
@@ -239,10 +247,10 @@ void file_read_page(int fd, pagenum_t pagenum, page_t* dest){
     DSM::load_page_from_file(fd,pagenum,dest);
 }
 
-void file_write_page(int fd, pagenum_t pagenum, const page_t* src){
-    //check fd is valid
-    if(!DSM::is_file_opened(fd)){
-        throw "unvalid file descriptor";
+void file_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
+    int fd; //file descriptor
+    if((fd = DSM::get_file_descriptor(table_id)) == -1){
+        throw "unvalid table id";
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
@@ -253,15 +261,15 @@ void file_write_page(int fd, pagenum_t pagenum, const page_t* src){
     DSM::store_page_to_file(fd,pagenum,src);
 }
 
-void file_close_database_file(){
+void file_close_table_file(){
     //close all opened file descriptor
     for(int i=0;i<DSM::DB_FILE_LIST_SIZE;i++){
-        std::pair<int,char*> &it = DSM::DB_FILE_LIST[i];
-        if(close(it.first)==-1){
+        DSM::table_info &it = DSM::DB_FILE_LIST[i];
+        if(close(it.fd)==-1){
             throw "close db file failed";
         }
-        free((void*)it.second); //free all path string
-        it = {0,0}; //clear element
+        free((void*)it.path); //free all path string
+        it = {0,0,0}; //clear element
 
     }
     //clear list

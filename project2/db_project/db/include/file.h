@@ -1,4 +1,5 @@
 #pragma once
+#include "page.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -7,36 +8,37 @@
 #include <stdio.h>
 #include <utility>
 
-#define PAGE_SIZE 4096 //4KiB page
 #define DEFAULT_PAGE_NUMBER 2560 //10MiB INIT DB SIZE
 #define MAX_DB_FILE_NUMBER 32 //max number of table
 
-typedef uint64_t pagenum_t; //page_number
-struct page_t {
-    //in-memory page structure
-    uint8_t raw_data[PAGE_SIZE];
-};
-
-// Open existing database file or create one if it doesn't exist
-int file_open_database_file(const char* path);
+// Open existing table file or create one if it doesn't exist
+int64_t file_open_table_file(const char* pathname);
 
 // Allocate an on-disk page from the free page list
-pagenum_t file_alloc_page(int fd);
+pagenum_t file_alloc_page(int64_t table_id);
 
 // Free an on-disk page to the free page list
-void file_free_page(int fd, pagenum_t pagenum);
+void file_free_page(int64_t table_id, pagenum_t pagenum);
 
 // Read an on-disk page into the in-memory page structure(dest)
-void file_read_page(int fd, pagenum_t pagenum, page_t* dest);
+void file_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest);
 
 // Write an in-memory page(src) to the on-disk page
-void file_write_page(int fd, pagenum_t pagenum, const page_t* src);
+void file_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);
 
 // Close the database file
-void file_close_database_file();
+void file_close_table_file();
 
 //inner struct and function used in DiskSpaceManager
 namespace DSM{
+    //table(file) info struct
+    struct table_info{
+        int64_t table_id;
+        char *path; //path to database file
+        int fd; //file descriptor
+        
+    };
+
     //header page(first page) structure
     struct header_page_t{
         pagenum_t free_page_number; //point to the first free page(head of free page list) or indicate no free page if 0
@@ -73,5 +75,8 @@ namespace DSM{
     void store_page_to_file(int fd, pagenum_t pagenum, const page_t* src);
     //inner function to load page from file
     void load_page_from_file(int fd, pagenum_t pagenum, page_t* dest);
+
+    //get file descriptor corresponding to given table id, if not existed return -1
+    int get_file_descriptor(int64_t table_id);
 }
 

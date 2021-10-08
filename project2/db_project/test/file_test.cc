@@ -9,7 +9,8 @@
 TEST(DiskSpaceManager, FileInitialization){
     //init test
     const char* path = "./FileInitialization.db";
-    int fd = file_open_database_file(path);
+    int64_t tid = file_open_table_file(path);
+    int fd = DSM::get_file_descriptor(tid);
 
 
     //check file size is 10MiB
@@ -18,13 +19,13 @@ TEST(DiskSpaceManager, FileInitialization){
 
     //read header page and check the number of pages entry
     DSM::_dsm_page_t header_page;
-    file_read_page(fd,0,&header_page._raw_page);
+    file_read_page(tid,0,&header_page._raw_page);
     EXPECT_EQ(header_page._header_page.number_of_pages, DEFAULT_PAGE_NUMBER);
 
 
     //end test
     EXPECT_NE(fcntl(fd,F_GETFL),-1); //check fd not closed yet
-    file_close_database_file();
+    file_close_table_file();
     EXPECT_EQ(fcntl(fd,F_GETFL),-1); //check fd closed properly
     remove(path);
 }
@@ -36,17 +37,18 @@ TEST(DiskSpaceManager, FileInitialization){
 TEST(DiskSpaceManager, PageManagement){
     //init test
     const char* path = "./PageManagement.db";
-    int fd = file_open_database_file(path);
+    int64_t tid = file_open_table_file(path);
+    int fd = DSM::get_file_descriptor(tid);
     
     //allocate two page and check status
     pagenum_t page1, page2;
-    page1 = file_alloc_page(fd);
-    page2 = file_alloc_page(fd);
+    page1 = file_alloc_page(tid);
+    page2 = file_alloc_page(tid);
     EXPECT_GT(page1,0);
     EXPECT_GT(page2,0);
 
     //free one of them
-    file_free_page(fd,page2);
+    file_free_page(tid,page2);
 
     pagenum_t pn = 0; //point to header page
     DSM::_dsm_page_t tmp; //free page list
@@ -56,7 +58,7 @@ TEST(DiskSpaceManager, PageManagement){
     do{
         EXPECT_NE(page1, pn); //check page1 is not in free page list
         //get next free page number
-        file_read_page(fd,pn,&tmp._raw_page);
+        file_read_page(tid,pn,&tmp._raw_page);
         pagenum_t np = pn?tmp._free_page.nxt_free_page_number:tmp._header_page.free_page_number;
 
         if(!pn) hasfreedpage = np == page2; //this page is just freed page
@@ -67,12 +69,12 @@ TEST(DiskSpaceManager, PageManagement){
 
     //check free page list size is same as (total_page_number - 1(header) - 1(allocated page))
     DSM::_dsm_page_t header_page;
-    file_read_page(fd,0,&header_page._raw_page);
+    file_read_page(tid,0,&header_page._raw_page);
     EXPECT_EQ(list.size(),header_page._header_page.number_of_pages - 2);
 
     //end test
     list.clear();
-    file_close_database_file();
+    file_close_table_file();
     remove(path);
 }
 
@@ -84,11 +86,12 @@ TEST(DiskSpaceManager, PageManagement){
 TEST(DiskSpaceManager, PageIO){
     //init page
     const char* path = "./PageIO.db";
-    int fd = file_open_database_file(path);
+    int64_t tid = file_open_table_file(path);
+    int fd = DSM::get_file_descriptor(tid);
     
     //allocate one page
     pagenum_t pg;
-    pg = file_alloc_page(fd);
+    pg = file_alloc_page(tid);
     EXPECT_GT(pg,0);
 
     //use for check matching
@@ -100,26 +103,27 @@ TEST(DiskSpaceManager, PageIO){
     memcpy(&sample,str,PAGE_SIZE);
 
     //write from sample and read to target
-    file_write_page(fd,pg,&sample);
-    file_read_page(fd,pg,&target);
+    file_write_page(tid,pg,&sample);
+    file_read_page(tid,pg,&target);
 
     //check two page contents are identical
     EXPECT_EQ(memcmp(&sample,&target,PAGE_SIZE),0);
 
     //close db and open same db file again
-    file_close_database_file();
-    fd = file_open_database_file(path);
+    file_close_table_file();
+    tid = file_open_table_file(path);
+    fd = DSM::get_file_descriptor(tid);
 
 
     //check two page contents are identical again
-    file_read_page(fd,pg,&target);
+    file_read_page(tid,pg,&target);
     EXPECT_EQ(memcmp(&sample,&target,PAGE_SIZE),0);
 
     //free page
-    file_free_page(fd,pg);
+    file_free_page(tid,pg);
 
     //end test
-    file_close_database_file();
+    file_close_table_file();
     delete[] str;
     remove(path);
 }
@@ -130,30 +134,31 @@ TEST(DiskSpaceManager, ErrorHandling){
     //init test
     const char* path = "./ErrorHandling.db";
     const char* dup_path = "./././ErrorHandling.db";
-    int fd = file_open_database_file(path);
+    int64_t tid = file_open_table_file(path);
+    int fd = DSM::get_file_descriptor(tid);
 
     //check duplicated open
-    EXPECT_THROW(file_open_database_file(dup_path),const char*)<<"allowed duplicated open";
+    EXPECT_THROW(file_open_table_file(dup_path),const char*)<<"allowed duplicated open";
     
     //check unvalid file descriptor
     page_t tmp={0,};
-    EXPECT_THROW(file_read_page(fd+1,0,&tmp),const char*)<<"allowed unvalid file descriptor";
-    EXPECT_THROW(file_write_page(fd+1,0,&tmp),const char*)<<"allowed unvalid file descriptor";
-    EXPECT_THROW(file_alloc_page(fd+1),const char*)<<"allowed unvalid file descriptor";
-    EXPECT_THROW(file_free_page(fd+1,0),const char*)<<"allowed unvalid file descriptor";
+    EXPECT_THROW(file_read_page(tid+1,0,&tmp),const char*)<<"allowed unvalid file descriptor";
+    EXPECT_THROW(file_write_page(tid+1,0,&tmp),const char*)<<"allowed unvalid file descriptor";
+    EXPECT_THROW(file_alloc_page(tid+1),const char*)<<"allowed unvalid file descriptor";
+    EXPECT_THROW(file_free_page(tid+1,0),const char*)<<"allowed unvalid file descriptor";
 
     //use for out of bound check
     DSM::_dsm_page_t header_page;
-    file_read_page(fd,0,&header_page._raw_page);
+    file_read_page(tid,0,&header_page._raw_page);
     uint64_t num_of_page = header_page._header_page.number_of_pages;
     
     //check out of bound
-    EXPECT_THROW(file_read_page(fd,num_of_page,&tmp),const char*)<<"allowed out of bound";
-    EXPECT_THROW(file_write_page(fd,num_of_page,&tmp),const char*)<<"allowed out of bound";
-    EXPECT_THROW(file_free_page(fd,num_of_page),const char*)<<"allowed out of bound";
+    EXPECT_THROW(file_read_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
+    EXPECT_THROW(file_write_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
+    EXPECT_THROW(file_free_page(tid,num_of_page),const char*)<<"allowed out of bound";
 
     //end test
-    file_close_database_file();
+    file_close_table_file();
     remove(path);
 }
 
@@ -164,30 +169,31 @@ TEST(DiskSpaceManager, ErrorHandling){
 TEST(DiskSpaceManager, FileGrowTest){
     //init test
     const char* path = "./FileGrowTest.db";
-    int fd = file_open_database_file(path);
+    int64_t tid = file_open_table_file(path);
+    int fd = DSM::get_file_descriptor(tid);
     
     //allocate all free page in the list
     std::vector<pagenum_t> pg_list;
     for(int i=0;i<DEFAULT_PAGE_NUMBER-1;i++){
-        pg_list.push_back(file_alloc_page(fd));
+        pg_list.push_back(file_alloc_page(tid));
         EXPECT_EQ(pg_list.back(),i+1); //check page status
     }
     
     //check the file size doesn't grow yet
-    loff_t siz = lseek64(fd,0,SEEK_END);
+    loff_t siz = lseek64(tid,0,SEEK_END);
     EXPECT_EQ(siz, 1024*1024*10);
 
     //check the number of page doesn't increase yet
     //and no free page left
     DSM::_dsm_page_t header_page;
-    file_read_page(fd,0,&header_page._raw_page);
+    file_read_page(tid,0,&header_page._raw_page);
     pagenum_t nxt_free_page = header_page._header_page.free_page_number;
     uint64_t num_of_page = header_page._header_page.number_of_pages;
     EXPECT_EQ(num_of_page,DEFAULT_PAGE_NUMBER);
     EXPECT_EQ(nxt_free_page,0);
 
     //allocate one more to make file grow
-    pg_list.push_back(file_alloc_page(fd));
+    pg_list.push_back(file_alloc_page(tid));
     EXPECT_EQ(pg_list.back(),DEFAULT_PAGE_NUMBER);
 
     //check file size growth
@@ -195,7 +201,7 @@ TEST(DiskSpaceManager, FileGrowTest){
     EXPECT_EQ(siz, 1024*1024*10*2);
 
     //check doubling the number of page and next free page status
-    file_read_page(fd,0,&header_page._raw_page);
+    file_read_page(tid,0,&header_page._raw_page);
     nxt_free_page = header_page._header_page.free_page_number;
     num_of_page = header_page._header_page.number_of_pages;
     EXPECT_EQ(nxt_free_page,DEFAULT_PAGE_NUMBER+1);
@@ -203,18 +209,18 @@ TEST(DiskSpaceManager, FileGrowTest){
 
     //free all allocated page
     for(pagenum_t& x : pg_list){
-        file_free_page(fd,x);
+        file_free_page(tid,x);
     }
 
     DSM::_dsm_page_t tmp;
     std::vector<pagenum_t> free_pg_list;
 
     //read all free page list
-    file_read_page(fd,0,&header_page._raw_page);
+    file_read_page(tid,0,&header_page._raw_page);
     nxt_free_page = header_page._header_page.free_page_number;
     do{
         free_pg_list.push_back(nxt_free_page);
-        file_read_page(fd,nxt_free_page,&tmp._raw_page);
+        file_read_page(tid,nxt_free_page,&tmp._raw_page);
         pagenum_t np = nxt_free_page?tmp._free_page.nxt_free_page_number:tmp._header_page.free_page_number;
         nxt_free_page = np;
     }while(nxt_free_page);
@@ -234,6 +240,6 @@ TEST(DiskSpaceManager, FileGrowTest){
     //end test
     free_pg_list.clear();
     pg_list.clear();
-    file_close_database_file();
+    file_close_table_file();
     remove(path);
 }
