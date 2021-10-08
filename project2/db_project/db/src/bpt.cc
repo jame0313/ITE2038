@@ -52,6 +52,7 @@
  *
  */
 
+#include "file.h"
 #include "bpt.h"
 
 // GLOBALS.
@@ -81,6 +82,42 @@ node * queue = NULL;
  * next to their corresponding keys.
  */
 bool verbose_output = false;
+
+int64_t open_table(char *pathname){
+    try{
+        int64_t tid = file_open_table_file(pathname);
+        return tid;
+    }catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}
+
+int db_insert(int64_t table_id, int64_t key, char *value, uint16_t val_size){
+
+}
+
+int db_find(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size){
+
+}
+
+int db_delete(int64_t table_id, int64_t key){
+
+}
+
+int init_db(){
+
+}
+
+int shutdown_db(){
+    try{
+        file_close_table_file();
+        return 0;
+    }catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}
 
 
 // FUNCTION DEFINITIONS.

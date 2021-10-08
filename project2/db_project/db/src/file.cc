@@ -184,8 +184,9 @@ pagenum_t file_alloc_page(int64_t table_id){
         nxt_page_number = current_number_of_pages;
 
         //init header page to point second new page and grow page size twice
-        DSM::init_header_page(&header_page._raw_page, current_number_of_pages+1, current_number_of_pages<<1);
-        
+        header_page._header_page.free_page_number = current_number_of_pages + 1;
+        header_page._header_page.number_of_pages <<= 1;
+
         page_t free_page;
 
         //init free page lists
