@@ -46,6 +46,7 @@ TEST(DiskSpaceManager, PageManagement){
     page2 = file_alloc_page(tid);
     EXPECT_GT(page1,0);
     EXPECT_GT(page2,0);
+    EXPECT_NE(page1, page2);
 
     //free one of them
     file_free_page(tid,page2);

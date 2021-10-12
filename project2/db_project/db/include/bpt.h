@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <algorithm>
 #include "page.h"
 
 #define DEFAULT_ORDER 124
@@ -212,11 +213,11 @@ namespace FIM{
     };
 
     //leaf page's slot structure (find record in page)
-    //value range: [offset-size, offset)
+    //value range: [offset, offset+size)
     struct page_slot_t{
         int64_t key;
         uint16_t size; //size of value
-        uint16_t offset; //in-page offset, point end of value
+        uint16_t offset; //in-page offset, point begin of value
     } __attribute__((packed));
 
     //(key, page(pointer)) pair structure
@@ -251,4 +252,16 @@ namespace FIM{
         FIM::internal_page_t _internal_page;
         FIM::leaf_page_t _leaf_page;
     };
+
+    pagenum_t find_leaf_page(int64_t table_id, int64_t key);
+    int find_record(int64_t table_id, int64_t key, char *ret_val = NULL, uint16_t* val_size = NULL);
+    int insert_record(int64_t table_id, int64_t key, char *value, uint16_t val_size);
+    pagenum_t init_new_tree(int64_t table_id, int64_t key, char *value, uint16_t val_size);
+    pagenum_t make_page(int64_t table_id);
+    void insert_into_leaf_page(pagenum_t leaf_page_number, int64_t table_id, int64_t key, char *value, uint16_t val_size);
+    pagenum_t insert_into_leaf_page_after_splitting(pagenum_t leaf_page_number, int64_t table_id, int64_t key, char *value, uint16_t val_size);
+    pagenum_t insert_into_parent_page(pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number);
+    pagenum_t insert_into_new_root_page(pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number);
+    void insert_into_page(pagenum_t page_number, pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number);
+    pagenum_t insert_into_page_after_splitting(pagenum_t page_number, pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number);
 }
