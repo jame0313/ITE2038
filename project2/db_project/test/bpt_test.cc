@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
+#include "file.h"
 #include "bpt.h"
 #include <vector>
 #include <algorithm>
 #include <cstdlib>
 #include <random>
-/*
+
 TEST(FileandIndexManager, BASIC_TEST){
     //init test
     
@@ -22,7 +23,7 @@ TEST(FileandIndexManager, BASIC_TEST){
     
     int64_t tid = open_table(path);
 
-    int num = 1000;
+    int num = 10000;
     std::vector<int64_t> key_list;
     std::vector<char*> value_list;
     std::vector<int> siz_list;
@@ -85,16 +86,19 @@ TEST(FileandIndexManager, BASIC_TEST){
     shutdown_db();
     remove(path);
     delete[] path;
-}*/
+}
 
 TEST(FileandIndexManager, RANDOM_TEST){
-    const int num = 50; //number of record
-    const int query = 20000; //number of query
-    bool random_seed = true; //set random_seed
+    const int num = 500; //number of record
+    const int query = 2000; //number of query
+    bool random_seed = false; //set random_seed
     const int static_seed = 1234; //default static seed
+    auto find_leaf_func = FIM::find_leaf_page;
+
+    int prob_table[] = {85, 75, 95}; //set ratio of style of each type query
 
     //init test
-    srand(time(NULL));
+    srand(random_seed?time(NULL):static_seed);
     init_db();
 
     //make random file name
@@ -102,7 +106,11 @@ TEST(FileandIndexManager, RANDOM_TEST){
     const char *prefix = "./RS_";
     int len = strlen(prefix);
     memcpy(path, prefix ,len);
-    for(int i=len;i<22;i++) path[i] = rand() % 26 + 'A';
+    auto tm = time(NULL) % RAND_MAX;
+    for(int i=len;i<22;i++){
+        path[i] = tm % 26 + 'A';
+        tm = (tm*tm)%RAND_MAX; 
+    }
     path[22] = '.';
     path[23] = 'd';
     path[24] = 'b';
@@ -114,6 +122,8 @@ TEST(FileandIndexManager, RANDOM_TEST){
     std::vector<int64_t> key_list;
     std::vector<char*> value_list;
     std::vector<int> siz_list;
+
+    std::string result_string; //store find query
 
     for(int64_t i=0; i<num; i++){
         //make record
@@ -139,18 +149,18 @@ TEST(FileandIndexManager, RANDOM_TEST){
     std::vector<std::pair<int64_t, std::string>> key_value_pairs {};
     std::set<int64_t> key_set;
 
-    int prob_table[] = {75, 75, 95}; //set ratio of style of each type query
+    int ratio = 2;
 
     for(int i=0;i<query;i++){
-        int c = rand() % 3;
+        int c = rand() % 4;
         int p = rand() % 100;
         bool is_empty = key_value_pairs.empty();
         std::uniform_int_distribution<int> list_dis(0, key_value_pairs.size() - 1);
         std::uniform_int_distribution<int> pool_dis(0, num - 1);
 
-        if(c==0){
+        if(c>=3){
             //find
-            if((!is_empty && p<prob_table[c]) || key_value_pairs.size() >= num){
+            if((!is_empty && p<prob_table[0]) || key_value_pairs.size() >= num){
                 //find existed case
                 int idx = list_dis(gen);
                 
@@ -161,7 +171,10 @@ TEST(FileandIndexManager, RANDOM_TEST){
                 <<"CAN'T FIND "<<key_value_pairs[idx].first<<'\n';
 
                 EXPECT_EQ(siz, key_value_pairs[idx].second.size());
-                EXPECT_EQ(strncmp(val, key_value_pairs[idx].second.c_str(), siz), 0);
+                ASSERT_EQ(strncmp(val, key_value_pairs[idx].second.c_str(), siz), 0)
+                <<"NOT EQUAL "<<val<<' '<<key_value_pairs[idx].second<<" on query "<<i<<'\n';
+
+                result_string += val;
 
                 delete[] val;
             }
@@ -176,9 +189,9 @@ TEST(FileandIndexManager, RANDOM_TEST){
                 <<"FIND NONEXISTED KEY "<<key_list[idx]<<'\n';
             }
         }
-        else if(c==1){
+        else if(c<ratio){
             //insert
-            if(is_empty || (p<prob_table[c] && key_value_pairs.size() < num)){
+            if(is_empty || (p<prob_table[1] && key_value_pairs.size() < num)){
                 //insert nonexisted key
                 
                 int idx = 0;
@@ -205,10 +218,14 @@ TEST(FileandIndexManager, RANDOM_TEST){
 
                 delete[] val;
             }
+            if(key_value_pairs.size() == num){
+                //std::cerr << "full!"<<'\n';
+                ratio = 1; //toggle raito
+            }
         }
         else{
             //delete
-            if((!is_empty && p<prob_table[c]) || key_value_pairs.size() >= num){
+            if((!is_empty && p<prob_table[2]) || key_value_pairs.size() >= num){
                 //delete existed key
                int idx = list_dis(gen);
                 
@@ -228,12 +245,38 @@ TEST(FileandIndexManager, RANDOM_TEST){
                     idx = pool_dis(gen);
                 }while(key_set.find(key_list[idx])!=key_set.end());
 
-                EXPECT_NE(db_delete(tid, key_list[idx]), 0)
+                ASSERT_NE(db_delete(tid, key_list[idx]), 0)
                 <<"DELETE NONEXISTED KEY "<<key_list[idx]<<'\n';
+            }
+            if(key_value_pairs.empty()){
+                //std::cerr << "empty!"<<'\n';
+                ratio = 2; //toggle raito
             }
         }
     }
 
+    size_t ret = std::hash<std::string>{}(result_string);
+    std::cout<<"hash value: ";
+    for(int i=0;i<16;i++){
+        std::cout<<"0123456789ABCDEF"[ret&15];
+        ret >>= 4;
+    }
+    std::cout<<'\n';
+    std::cout<<"key len: "<<key_value_pairs.size()<<'\n';
+
+    std::string tree_string = "";
+    for(auto& [ky, val] : key_value_pairs){
+        tree_string += find_leaf_func(tid, ky);
+        std::cout << find_leaf_func(tid, ky)<<' ';
+    }
+    std::cout<<'\n';
+    ret = std::hash<std::string>{}(tree_string);
+    std::cout<<"tree hash value: ";
+    for(int i=0;i<16;i++){
+        std::cout<<"0123456789ABCDEF"[ret&15];
+        ret >>= 4;
+    }
+    std::cout<<'\n';
     
 
 

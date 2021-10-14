@@ -17,7 +17,7 @@ static const std::string CHARACTERS {
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"};
 
 static const std::string BASE_TABLE_NAME { "table" };
-static constexpr int NUM_TABLES { 20 };
+static constexpr int NUM_TABLES { 1 };
 
 static constexpr int NUM_KEYS { 10000 };
 

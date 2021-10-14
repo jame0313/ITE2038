@@ -1,57 +1,3 @@
-/*
- *  bpt.c  
- */
-#define Version "1.14"
-/*
- *
- *  bpt:  B+ Tree Implementation
- *  Copyright (C) 2010-2016  Amittai Aviram  http://www.amittai.com
- *  All rights reserved.
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions are met:
- *
- *  1. Redistributions of source code must retain the above copyright notice, 
- *  this list of conditions and the following disclaimer.
- *
- *  2. Redistributions in binary form must reproduce the above copyright notice, 
- *  this list of conditions and the following disclaimer in the documentation 
- *  and/or other materials provided with the distribution.
- 
- *  3. Neither the name of the copyright holder nor the names of its 
- *  contributors may be used to endorse or promote products derived from this 
- *  software without specific prior written permission.
- 
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
- *  POSSIBILITY OF SUCH DAMAGE.
- 
- *  Author:  Amittai Aviram 
- *    http://www.amittai.com
- *    amittai.aviram@gmail.edu or afa13@columbia.edu
- *  Original Date:  26 June 2010
- *  Last modified: 17 June 2016
- *
- *  This implementation demonstrates the B+ tree data structure
- *  for educational purposes, includin insertion, deletion, search, and display
- *  of the search path, the leaves, or the whole tree.
- *  
- *  Must be compiled with a C99-compliant C compiler such as the latest GCC.
- *
- *  Usage:  bpt [order]
- *  where order is an optional argument
- *  (integer MIN_ORDER <= order <= MAX_ORDER)
- *  defined as the maximal number of pointers in any node.
- *
- */
-
 #include "file.h"
 #include "bpt.h"
 
@@ -441,14 +387,12 @@ namespace FIM{
         return FIM::delete_entry(leaf_page, table_id, key);
     }
 
-    int delete_entry(pagenum_t page_number, int64_t table_id, int64_t key, pagenum_t target_page_number){
-        _fim_page_t page, target_page, header_page, parent_page, neighbor_page;
+    int delete_entry(pagenum_t page_number, int64_t table_id, int64_t key){
+        _fim_page_t page, header_page, parent_page, neighbor_page;
         
-        FIM::remove_entry_from_page(page_number, table_id, key, target_page_number);
+        FIM::remove_entry_from_page(page_number, table_id, key);
 
         file_read_page(table_id,page_number,&page._raw_page);
-        //file_read_page(table_id,target_page_number,&target_page._raw_page);
-        //file_read_page(table_id,0,&header_page._raw_page);
 
         pagenum_t parent_page_number = page._internal_page.page_header.parent_page_number;
         
@@ -505,17 +449,17 @@ namespace FIM{
             }
 
             if(can_merge){
-                merge_pages(page_number, table_id, middle_key, neighbor_page_number, is_leftmost);
+                return FIM::merge_pages(page_number, table_id, middle_key, neighbor_page_number, is_leftmost);
             }
             else{
-                redistribute_pages(page_number, table_id, middle_key, neighbor_page_number, is_leftmost);
+                FIM::redistribute_pages(page_number, table_id, middle_key, neighbor_page_number, is_leftmost);
+                return 0;
             }
-            return 0;
         }
         else return 0;
     }
 
-    void remove_entry_from_page(pagenum_t page_number, uint64_t table_id, int64_t key, pagenum_t  target_page_number){
+    void remove_entry_from_page(pagenum_t page_number, uint64_t table_id, int64_t key){
         _fim_page_t page;
         file_read_page(table_id, page_number, &page._raw_page);
         uint32_t num_keys = page._leaf_page.page_header.number_of_keys;
@@ -550,8 +494,6 @@ namespace FIM{
         else{
             for(uint32_t i=0; i<num_keys; i++){
                 if(page._internal_page.key_and_page[i].key == key){
-                    //file_free_page(table_id, target_page_number);
-                    if(page._internal_page.key_and_page[i].page_number != target_page_number) throw "delete_entry from page ERROR";
                     for(uint32_t j=i+1; j<num_keys; j++){
                         page._internal_page.key_and_page[j-1] = page._internal_page.key_and_page[j];
                     }
@@ -588,7 +530,7 @@ namespace FIM{
         return new_root_page_number;
     }
 
-    void merge_pages(pagenum_t page_number, int64_t table_id, int64_t middle_key, pagenum_t neighbor_page_number, bool is_leftmost){
+    int merge_pages(pagenum_t page_number, int64_t table_id, int64_t middle_key, pagenum_t neighbor_page_number, bool is_leftmost){
         _fim_page_t left_page, right_page, tmp_page;
         if(is_leftmost) std::swap(page_number, neighbor_page_number);
 
@@ -603,11 +545,15 @@ namespace FIM{
         uint32_t right_num_keys = right_page._leaf_page.page_header.number_of_keys;
 
         if(left_page._leaf_page.page_header.is_leaf){
+            uint16_t offset = PAGE_SIZE;
+            for(uint32_t i = 0; i < left_num_keys; i++) offset = std::min(offset, left_page._leaf_page.slot[i].offset);
+            
+
             for(uint32_t i=0; i<right_num_keys; i++){
                 left_page._leaf_page.slot[left_num_keys + i] = right_page._leaf_page.slot[i];
-                left_page._leaf_page.slot[left_num_keys + i].offset = (left_num_keys + i > 0?
+                left_page._leaf_page.slot[left_num_keys + i].offset = (i > 0?
                     left_page._leaf_page.slot[left_num_keys + i - 1].offset:
-                    PAGE_SIZE)
+                    offset)
                     - right_page._leaf_page.slot[i].size;
                 memcpy(left_page._raw_page.raw_data + left_page._leaf_page.slot[left_num_keys + i].offset,
                     right_page._raw_page.raw_data + right_page._leaf_page.slot[i].offset,
@@ -645,8 +591,7 @@ namespace FIM{
 
         pagenum_t parent_page_number = left_page._leaf_page.page_header.parent_page_number;
         file_free_page(table_id, page_number);
-        FIM::delete_entry(parent_page_number, table_id, middle_key, page_number);
-        return;
+        return FIM::delete_entry(parent_page_number, table_id, middle_key);
     }
 
     void redistribute_pages(pagenum_t page_number, int64_t table_id, int64_t middle_key, pagenum_t neighbor_page_number, bool is_leftmost){

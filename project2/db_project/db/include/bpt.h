@@ -119,10 +119,10 @@ namespace FIM{
     void insert_into_page(pagenum_t page_number, pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number);
     pagenum_t insert_into_page_after_splitting(pagenum_t page_number, pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number);
     int delete_record(int64_t table_id, int64_t key);
-    int delete_entry(pagenum_t page_number, int64_t table_id, int64_t key, pagenum_t target_page_number = 0ULL);
-    void remove_entry_from_page(pagenum_t page_number, uint64_t table_id, int64_t key, pagenum_t  target_page_number);
+    int delete_entry(pagenum_t page_number, int64_t table_id, int64_t key);
+    void remove_entry_from_page(pagenum_t page_number, uint64_t table_id, int64_t key);
     pagenum_t adjust_root_page(pagenum_t root_page_number, int64_t table_id);
-    void merge_pages(pagenum_t page_number, int64_t table_id, int64_t middle_key, pagenum_t neighbor_page_number, bool is_leftmost);
+    int merge_pages(pagenum_t page_number, int64_t table_id, int64_t middle_key, pagenum_t neighbor_page_number, bool is_leftmost);
     void redistribute_pages(pagenum_t page_number, int64_t table_id, int64_t middle_key, pagenum_t neighbor_page_number, bool is_leftmost);
 
 }
