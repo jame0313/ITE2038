@@ -16,6 +16,7 @@ namespace DSM{
     }
     
     bool is_path_opened(const char* path){
+        if(!path) return false; //NULL case
         //check path in the DB_FILE_LIST
         for(int i=0;i<DB_FILE_LIST_SIZE;i++){
             if(DSM::DB_FILE_LIST[i].fd>0 && 
