@@ -158,6 +158,10 @@ TEST(DiskSpaceManager, ErrorHandling){
     EXPECT_THROW(file_write_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
     EXPECT_THROW(file_free_page(tid,num_of_page),const char*)<<"allowed out of bound";
 
+    //check header page case
+    EXPECT_THROW(file_free_page(tid,0),const char*)<<"allowed header page free";
+
+
     //end test
     file_close_table_file();
     remove(path);

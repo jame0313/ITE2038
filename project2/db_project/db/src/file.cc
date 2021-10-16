@@ -219,6 +219,11 @@ void file_free_page(int64_t table_id, pagenum_t pagenum){
         throw "pagenum is out of bound in file_free_page";
     }
 
+    //check pagenum is header page
+    if(!pagenum){
+        throw "free header page";
+    }
+
     DSM::_dsm_page_t header_page, new_page;
 
     //read header page
