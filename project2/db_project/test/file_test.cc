@@ -185,7 +185,7 @@ TEST(DiskSpaceManager, FileGrowTest){
     }
     
     //check the file size doesn't grow yet
-    loff_t siz = lseek64(tid,0,SEEK_END);
+    loff_t siz = lseek64(fd,0,SEEK_END);
     EXPECT_EQ(siz, 1024*1024*10);
 
     //check the number of page doesn't increase yet
