@@ -23,7 +23,7 @@ TEST(FileandIndexManager, BASIC_TEST){
     
     int64_t tid = open_table(path);
 
-    int num = 10000;
+    int num = 40000;
     std::vector<int64_t> key_list;
     std::vector<char*> value_list;
     std::vector<int> siz_list;
@@ -89,11 +89,14 @@ TEST(FileandIndexManager, BASIC_TEST){
 }
 
 TEST(FileandIndexManager, RANDOM_TEST){
-    const int num = 500; //number of record
-    const int query = 2000; //number of query
-    bool random_seed = false; //set random_seed
+    const int num = 200000; //number of record
+    const int query = 200000; //number of query
+    bool random_seed = true; //set random_seed
     const int static_seed = 1234; //default static seed
-    auto find_leaf_func = FIM::find_leaf_page;
+    bool print_hash = true; //set printing hash
+    bool print_key_and_value = true; //print final content
+    bool delete_result_db = true; //delete db file option
+    bool random_file_name = true; //set db file name random
 
     int prob_table[] = {85, 75, 95}; //set ratio of style of each type query
 
@@ -101,20 +104,26 @@ TEST(FileandIndexManager, RANDOM_TEST){
     srand(random_seed?time(NULL):static_seed);
     init_db();
 
-    //make random file name
-    char* path =  new char[26];
-    const char *prefix = "./RS_";
-    int len = strlen(prefix);
-    memcpy(path, prefix ,len);
-    auto tm = time(NULL) % RAND_MAX;
-    for(int i=len;i<22;i++){
-        path[i] = tm % 26 + 'A';
-        tm = (tm*tm)%RAND_MAX; 
+    char* path;
+    if(random_file_name){
+        //make random file name
+        path =  new char[26];
+        const char *prefix = "./RS_";
+        int len = strlen(prefix);
+        memcpy(path, prefix ,len);
+        auto tm = time(NULL) % RAND_MAX;
+        for(int i=len;i<22;i++){
+            path[i] = tm % 26 + 'A';
+            tm = (tm*tm)%RAND_MAX; 
+        }
+        path[22] = '.';
+        path[23] = 'd';
+        path[24] = 'b';
+        path[25] = 0;
     }
-    path[22] = '.';
-    path[23] = 'd';
-    path[24] = 'b';
-    path[25] = 0;
+    else{
+        path = (char*)"STATIC_TEST_DB.db";
+    }
     
     int64_t tid = open_table(path);
 
@@ -137,8 +146,6 @@ TEST(FileandIndexManager, RANDOM_TEST){
         val[siz-1] = 0;
         value_list.push_back(val);
     }
-
-
 
     std::random_device rd;
 	std::mt19937 gen(random_seed?rd():static_seed);
@@ -255,30 +262,31 @@ TEST(FileandIndexManager, RANDOM_TEST){
         }
     }
 
-    size_t ret = std::hash<std::string>{}(result_string);
-    std::cout<<"hash value: ";
-    for(int i=0;i<16;i++){
-        std::cout<<"0123456789ABCDEF"[ret&15];
-        ret >>= 4;
+    if(print_hash){
+        size_t ret = std::hash<std::string>{}(result_string);
+        std::cout<<"hash value: ";
+        for(int i=0;i<16;i++){
+            std::cout<<"0123456789ABCDEF"[ret&15];
+            ret >>= 4;
+        }
+        std::cout<<'\n';
+        std::cout<<"key len: "<<key_value_pairs.size()<<'\n';
     }
-    std::cout<<'\n';
-    std::cout<<"key len: "<<key_value_pairs.size()<<'\n';
-
-    std::string tree_string = "";
-    for(auto& [ky, val] : key_value_pairs){
-        tree_string += find_leaf_func(tid, ky);
-        std::cout << find_leaf_func(tid, ky)<<' ';
+    if(print_key_and_value){
+        int idx = 1;
+        std::string pair_string = "";
+        for(auto& x : key_value_pairs){
+            std::cout<<idx++<<"th data -  "<<x.first<<" : "<<x.second<<'\n';
+            pair_string += x.first + " " + x.second;
+        }
+        size_t ret = std::hash<std::string>{}(pair_string);
+        std::cout<<"pair hash value: ";
+        for(int i=0;i<16;i++){
+            std::cout<<"0123456789ABCDEF"[ret&15];
+            ret >>= 4;
+        }
+        std::cout<<'\n';
     }
-    std::cout<<'\n';
-    ret = std::hash<std::string>{}(tree_string);
-    std::cout<<"tree hash value: ";
-    for(int i=0;i<16;i++){
-        std::cout<<"0123456789ABCDEF"[ret&15];
-        ret >>= 4;
-    }
-    std::cout<<'\n';
-    
-
 
     //end test
     for(int i=0; i<num; i++) delete[] value_list[i];
@@ -286,6 +294,45 @@ TEST(FileandIndexManager, RANDOM_TEST){
     value_list.clear();
     siz_list.clear();
     shutdown_db();
-    remove(path);
-    delete[] path;
+    if(delete_result_db) remove(path);
+    if(random_file_name) delete[] path;
+}
+
+TEST(FileandIndexManager, READ_TEST){
+    bool print_hash = true; //set printing hash
+    bool print_key_and_value = true; //print final content
+    int64_t range = 200000; //key value range [0, range)
+    char* path = (char*)"STATIC_TEST_DB.db";
+    
+    init_db();
+
+    if(access(path,F_OK)){
+        std::cout<<"NO DB FILE / SKIP READ TEST"<<'\n';
+    }
+    else{
+        int64_t tid = open_table(path);
+        std::string result_string; //store find query
+        for(int64_t idx=0;idx<range;idx++){
+            char * val = new char[128];
+            uint16_t siz = 0;
+            int ret = db_find(tid, idx, val, &siz);
+            if(ret){
+                val[0] = '0'; val[1] = 0;
+            }
+            if(idx % (range/20 + 1) == 0) std::cout<<idx<<"th data -  "<<idx<<" : "<<(ret?"NO DATA":val)<<'\n';
+            result_string += val;
+            delete[] val;
+        }
+        if(print_hash){
+            size_t ret = std::hash<std::string>{}(result_string);
+            std::cout<<"hash value: ";
+            for(int i=0;i<16;i++){
+                std::cout<<"0123456789ABCDEF"[ret&15];
+                ret >>= 4;
+            }
+            std::cout<<'\n';
+        }
+    }
+    //end test
+    shutdown_db();
 }
