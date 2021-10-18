@@ -92,6 +92,7 @@ int64_t file_open_table_file(const char* pathname){
 
     //check this path is already opened by this function
     if(DSM::is_path_opened(rpath)){
+        free(rpath);
         throw "this file has been already opened";
     }
 
