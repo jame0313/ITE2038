@@ -23,7 +23,7 @@ TEST(FileandIndexManager, BASIC_TEST){
     
     int64_t tid = open_table(path);
 
-    int num = 4000;
+    int num = 40000;
     std::vector<int64_t> key_list;
     std::vector<char*> value_list;
     std::vector<int> siz_list;
@@ -50,10 +50,10 @@ TEST(FileandIndexManager, BASIC_TEST){
         ASSERT_EQ(db_find(tid,key_list[idx_list[i]],NULL,NULL), 0)
         <<"CAN'T FIND "<<key_list[idx_list[i]]<<" in INSERTION\n";
     }
-    shutdown_db();
+    /*shutdown_db();
     init_db();
     tid = open_table(path);
-
+    */
     std::shuffle(idx_list.begin(), idx_list.end(), rng);
     for(int j=0; j<num; j++){
         int i = idx_list[j];
@@ -89,8 +89,8 @@ TEST(FileandIndexManager, BASIC_TEST){
 }
 
 TEST(FileandIndexManager, RANDOM_TEST){
-    const int num = 2000; //number of record
-    const int query = 2000; //number of query
+    const int num = 5000; //number of record
+    const int query = 100; //number of query
     bool random_seed = true; //set random_seed
     const int static_seed = 1234; //default static seed
     bool print_hash = true; //set printing hash

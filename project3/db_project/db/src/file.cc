@@ -63,7 +63,7 @@ namespace DSM{
         if(pwrite64(fd,src,sizeof(page_t),pagenum*PAGE_SIZE)!=sizeof(page_t)){
             throw "write system call failed!";
         }
-        //if(fsync(fd)==-1) throw "sync system call failed!";
+        if(fsync(fd)==-1) throw "sync system call failed!";
     }
 
     void load_page_from_file(int fd, pagenum_t pagenum, page_t* dest){
@@ -248,6 +248,7 @@ void file_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest){
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
+        return; //not used (buffer manager check this)
         throw "pagenum is out of bound in file_read_page";
     }
 
@@ -262,6 +263,7 @@ void file_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
+        return; //not used (buffer manager check this)
         throw "pagenum is out of bound in file_write_page";
     }
 

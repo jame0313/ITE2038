@@ -2,8 +2,8 @@
 
 namespace FIM{
     pagenum_t make_page(int64_t table_id){
-        //get new page from DSM
-        pagenum_t x = file_alloc_page(table_id);
+        //get new page from BM
+        pagenum_t x = buffer_alloc_page(table_id);
         return x;
     }
 
@@ -18,9 +18,9 @@ namespace FIM{
 
         try{
             //set root page in header page
-            file_read_page(table_id,0,&header_page._raw_page);
+            buffer_read_page(table_id, 0, &header_page._raw_page);
             header_page._header_page.root_page_number = root_page_number;
-            file_write_page(table_id,0,&header_page._raw_page);
+            buffer_write_page(table_id, 0, &header_page._raw_page);
             return 0;
         }
         catch(const char* e){
@@ -33,14 +33,14 @@ namespace FIM{
         _fim_page_t header_page, cnt_page;
 
         //get header page to get root page number
-        file_read_page(table_id,0,&header_page._raw_page);
+        buffer_read_page(table_id,0,&header_page._raw_page, true);
         pagenum_t root = header_page._header_page.root_page_number; //root page number
 
         if(!root) return 0; //no tree case
 
         //current page(return value)
         pagenum_t cnt_page_number = root;
-        file_read_page(table_id,root,&cnt_page._raw_page);
+        buffer_read_page(table_id,root,&cnt_page._raw_page, true);
         
         //find while current page is leaf page
         //find child page x where x th page's key <= key < x+1 th page's key
@@ -71,7 +71,7 @@ namespace FIM{
                 throw "inf loop in find leaf page";
             }
             //get next page
-            file_read_page(table_id,cnt_page_number,&cnt_page._raw_page);
+            buffer_read_page(table_id,cnt_page_number,&cnt_page._raw_page, true);
         }
         return cnt_page_number;
     }
@@ -83,7 +83,7 @@ namespace FIM{
         if(!leaf_page_number) return -1; //can't find leaf page
 
         _fim_page_t leaf_page;
-        file_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -106,7 +106,7 @@ namespace FIM{
         if(!FIM::find_record(table_id,key)) return -1; //there is key in tree already
 
         _fim_page_t header_page, leaf_page;
-        file_read_page(table_id,0,&header_page._raw_page); //get header page to get root page
+        buffer_read_page(table_id,0,&header_page._raw_page, true); //get header page to get root page
         pagenum_t root = header_page._header_page.root_page_number;
 
         if(!root){
@@ -118,7 +118,7 @@ namespace FIM{
 
         //find corresponding leaf page to insert record
         pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
-        file_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
 
         //check insert operation's result need splitting
         uint64_t left_space = leaf_page._leaf_page.amount_of_free_space;
@@ -156,13 +156,13 @@ namespace FIM{
         memcpy(root_page._raw_page.raw_data + (PAGE_SIZE - val_size), value, val_size);
         
         //save changes
-        file_write_page(table_id,root,&root_page._raw_page);
+        buffer_write_page(table_id,root,&root_page._raw_page);
         return root;
     }
 
     void insert_into_leaf_page(pagenum_t leaf_page_number, int64_t table_id, int64_t key, char *value, uint16_t val_size){
         _fim_page_t leaf_page;
-        file_read_page(table_id,leaf_page_number,&leaf_page._raw_page); //get leaf page
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page); //get leaf page
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
         //set new offset
@@ -201,7 +201,7 @@ namespace FIM{
 
         leaf_page._leaf_page.amount_of_free_space -= val_size + sizeof(FIM::page_slot_t); //update free space
         leaf_page._leaf_page.page_header.number_of_keys ++; //update key number
-        file_write_page(table_id,leaf_page_number,&leaf_page._raw_page); //save changes
+        buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page); //save changes
         return;
     }
 
@@ -211,7 +211,7 @@ namespace FIM{
         
         new_leaf_page._leaf_page.page_header.is_leaf = 1; //set leaf
         
-        file_read_page(table_id,leaf_page_number,&leaf_page._raw_page); //get leaf page (old leaf)
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page); //get leaf page (old leaf)
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
         
         //temp slot and value to store all record
@@ -316,8 +316,8 @@ namespace FIM{
         memset(new_leaf_page._raw_page.raw_data + PAGE_HEADER_SIZE + (new_leaf_page._leaf_page.page_header.number_of_keys*sizeof(FIM::page_slot_t)), 0, new_leaf_page._leaf_page.amount_of_free_space);
 
         //save changes
-        file_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
-        file_write_page(table_id,new_leaf_page_number,&new_leaf_page._raw_page);
+        buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+        buffer_write_page(table_id,new_leaf_page_number,&new_leaf_page._raw_page);
 
         //get new key from right page's first key
         int64_t new_key = new_leaf_page._leaf_page.slot[0].key;
@@ -328,7 +328,7 @@ namespace FIM{
 
     int insert_into_parent_page(pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number){
         _fim_page_t left_page, parent_page;
-        file_read_page(table_id,left_page_number,&left_page._raw_page); //get left page to get parent page number
+        buffer_read_page(table_id,left_page_number,&left_page._raw_page, true); //get left page to get parent page number
 
         pagenum_t parent_page_number = left_page._internal_page.page_header.parent_page_number;
         
@@ -339,7 +339,7 @@ namespace FIM{
             return FIM::change_root_page(table_id, root);
         }
 
-        file_read_page(table_id,parent_page_number,&parent_page._raw_page); //get parent page
+        buffer_read_page(table_id,parent_page_number,&parent_page._raw_page, true); //get parent page
 
         uint32_t num_keys = parent_page._internal_page.page_header.number_of_keys;
 
@@ -364,8 +364,8 @@ namespace FIM{
         _fim_page_t root_page = {0,}, left_page, right_page;
 
         //get left and right page
-        file_read_page(table_id,left_page_number,&left_page._raw_page);
-        file_read_page(table_id,right_page_number,&right_page._raw_page);
+        buffer_read_page(table_id,left_page_number,&left_page._raw_page);
+        buffer_read_page(table_id,right_page_number,&right_page._raw_page);
         
         //set root page
         root_page._internal_page.page_header.parent_page_number = 0;
@@ -381,9 +381,9 @@ namespace FIM{
         right_page._internal_page.page_header.parent_page_number = root;
 
         //save changes
-        file_write_page(table_id,root,&root_page._raw_page);
-        file_write_page(table_id,left_page_number,&left_page._raw_page);
-        file_write_page(table_id,right_page_number,&right_page._raw_page);
+        buffer_write_page(table_id,root,&root_page._raw_page);
+        buffer_write_page(table_id,left_page_number,&left_page._raw_page);
+        buffer_write_page(table_id,right_page_number,&right_page._raw_page);
 
         //return new root page number
         return root;
@@ -391,7 +391,7 @@ namespace FIM{
     
     void insert_into_page(pagenum_t page_number, pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number){
         _fim_page_t page;
-        file_read_page(table_id,page_number,&page._raw_page); //get page
+        buffer_read_page(table_id,page_number,&page._raw_page); //get page
         
         uint32_t num_keys = page._internal_page.page_header.number_of_keys;
         int left_index = -1; //left child page's index in parent page
@@ -419,7 +419,7 @@ namespace FIM{
         page._internal_page.page_header.number_of_keys ++;
 
         //save changes
-        file_write_page(table_id,page_number,&page._raw_page);
+        buffer_write_page(table_id,page_number,&page._raw_page);
         return;
     }
 
@@ -427,7 +427,7 @@ namespace FIM{
         pagenum_t new_page_number = FIM::make_page(table_id); //get new page (new internal page)
         _fim_page_t new_page = {0,}, page, tmp_page;
         
-        file_read_page(table_id,page_number,&page._raw_page); //get old page
+        buffer_read_page(table_id,page_number,&page._raw_page); //get old page
         uint32_t num_keys = page._internal_page.page_header.number_of_keys;
         
         //temp array to sort key and page number in page and new key and page number
@@ -503,18 +503,18 @@ namespace FIM{
         memset(new_page._raw_page.raw_data + offset, 0, PAGE_SIZE - offset);
         
         //save changes
-        file_write_page(table_id,page_number,&page._raw_page);
-        file_write_page(table_id,new_page_number,&new_page._raw_page);
+        buffer_write_page(table_id,page_number,&page._raw_page);
+        buffer_write_page(table_id,new_page_number,&new_page._raw_page);
 
         //update right page's children pages to point right page as parent
-        file_read_page(table_id,new_page._internal_page.leftmost_page_number,&tmp_page._raw_page);
+        buffer_read_page(table_id,new_page._internal_page.leftmost_page_number,&tmp_page._raw_page);
         tmp_page._internal_page.page_header.parent_page_number = new_page_number;
-        file_write_page(table_id,new_page._internal_page.leftmost_page_number,&tmp_page._raw_page);
+        buffer_write_page(table_id,new_page._internal_page.leftmost_page_number,&tmp_page._raw_page);
         
         for(uint32_t i = 0; i < split_point; i++){
-            file_read_page(table_id,new_page._internal_page.key_and_page[i].page_number,&tmp_page._raw_page);
+            buffer_read_page(table_id,new_page._internal_page.key_and_page[i].page_number,&tmp_page._raw_page);
             tmp_page._internal_page.page_header.parent_page_number = new_page_number;
-            file_write_page(table_id,new_page._internal_page.key_and_page[i].page_number,&tmp_page._raw_page);
+            buffer_write_page(table_id,new_page._internal_page.key_and_page[i].page_number,&tmp_page._raw_page);
         }
 
         //need to insert new key and new page in parent page
@@ -536,7 +536,7 @@ namespace FIM{
         
         FIM::remove_entry_from_page(page_number, table_id, key); //remove key and data in page
 
-        file_read_page(table_id,page_number,&page._raw_page); //get result page
+        buffer_read_page(table_id,page_number,&page._raw_page, true); //get result page
 
         pagenum_t parent_page_number = page._internal_page.page_header.parent_page_number;
         
@@ -576,7 +576,7 @@ namespace FIM{
             //or redistribute two pages' contents
             //to meet invariant in two pages
 
-            file_read_page(table_id,parent_page_number,&parent_page._raw_page); //get parent page to find neightbor page
+            buffer_read_page(table_id,parent_page_number,&parent_page._raw_page, true); //get parent page to find neightbor page
 
             //try to find left neighbor and key between two pages
             pagenum_t neighbor_page_number = 0;
@@ -616,7 +616,7 @@ namespace FIM{
                 return -1;
             }
 
-            file_read_page(table_id,neighbor_page_number,&neighbor_page._raw_page); //get neighbor page
+            buffer_read_page(table_id,neighbor_page_number,&neighbor_page._raw_page, true); //get neighbor page
             bool can_merge; //check two pages can merge into one page
 
             if(is_leaf){
@@ -647,7 +647,7 @@ namespace FIM{
 
     void remove_entry_from_page(pagenum_t page_number, uint64_t table_id, int64_t key){
         _fim_page_t page;
-        file_read_page(table_id, page_number, &page._raw_page); //get page
+        buffer_read_page(table_id, page_number, &page._raw_page); //get page
 
         uint32_t num_keys = page._leaf_page.page_header.number_of_keys;
         
@@ -716,12 +716,12 @@ namespace FIM{
             }
         }
         page._leaf_page.page_header.number_of_keys --;
-        file_write_page(table_id, page_number, &page._raw_page); //save changes
+        buffer_write_page(table_id, page_number, &page._raw_page); //save changes
     }
 
     pagenum_t adjust_root_page(pagenum_t root_page_number, int64_t table_id){
         _fim_page_t root_page, new_root_page;
-        file_read_page(table_id, root_page_number, &root_page._raw_page); //get current root
+        buffer_read_page(table_id, root_page_number, &root_page._raw_page, true); //get current root
         
         uint32_t num_keys = root_page._leaf_page.page_header.number_of_keys;
         
@@ -730,6 +730,8 @@ namespace FIM{
         if(num_keys > 0) return root_page_number;
 
         pagenum_t new_root_page_number;
+
+        buffer_read_page(table_id, root_page_number, &root_page._raw_page); //get current root again
 
         if(root_page._leaf_page.page_header.is_leaf){
             //root page was leaf page case
@@ -742,11 +744,11 @@ namespace FIM{
             //make this page as new root page
             new_root_page_number = root_page._internal_page.leftmost_page_number;
             
-            file_read_page(table_id, new_root_page_number, &new_root_page._raw_page); //get new root page
+            buffer_read_page(table_id, new_root_page_number, &new_root_page._raw_page); //get new root page
             new_root_page._leaf_page.page_header.parent_page_number = 0; //set page as root page
-            file_write_page(table_id, new_root_page_number, &new_root_page._raw_page); //save changes
+            buffer_write_page(table_id, new_root_page_number, &new_root_page._raw_page); //save changes
         }
-        file_free_page(table_id, root_page_number); //free deleted root page
+        buffer_free_page(table_id, root_page_number); //free deleted root page
 
         return new_root_page_number; //return new root page or 0 to indicate empty tree
     }
@@ -763,8 +765,8 @@ namespace FIM{
         if(is_leftmost) std::swap(page_number, neighbor_page_number); //swap again to restore status
 
         //get two pages
-        file_read_page(table_id, right_page_number, &right_page._raw_page);
-        file_read_page(table_id, left_page_number, &left_page._raw_page);
+        buffer_read_page(table_id, right_page_number, &right_page._raw_page);
+        buffer_read_page(table_id, left_page_number, &left_page._raw_page);
 
         uint32_t left_num_keys = left_page._leaf_page.page_header.number_of_keys;
         uint32_t right_num_keys = right_page._leaf_page.page_header.number_of_keys;
@@ -803,14 +805,14 @@ namespace FIM{
             //internal page case
 
             //set right page's children parent as left page in advance
-            file_read_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
+            buffer_read_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
             tmp_page._leaf_page.page_header.parent_page_number = left_page_number;
-            file_write_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
+            buffer_write_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
 
             for(uint32_t i=0; i<right_num_keys; i++){
-                file_read_page(table_id, right_page._internal_page.key_and_page[i].page_number, &tmp_page._raw_page);
+                buffer_read_page(table_id, right_page._internal_page.key_and_page[i].page_number, &tmp_page._raw_page);
                 tmp_page._leaf_page.page_header.parent_page_number = left_page_number;
-                file_write_page(table_id, right_page._internal_page.key_and_page[i].page_number, &tmp_page._raw_page);
+                buffer_write_page(table_id, right_page._internal_page.key_and_page[i].page_number, &tmp_page._raw_page);
             }
 
             //store middle key also in left page
@@ -831,8 +833,8 @@ namespace FIM{
 
         //save changes ONLY in left page
         //free deleted right page
-        file_write_page(table_id, left_page_number, &left_page._raw_page);
-        file_free_page(table_id, right_page_number);
+        buffer_write_page(table_id, left_page_number, &left_page._raw_page);
+        buffer_free_page(table_id, right_page_number);
 
         pagenum_t parent_page_number = left_page._leaf_page.page_header.parent_page_number;
         
@@ -850,8 +852,8 @@ namespace FIM{
         if(is_leftmost) std::swap(page_number, neighbor_page_number); //swap again to restore status
 
         //get two pages
-        file_read_page(table_id, right_page_number, &right_page._raw_page);
-        file_read_page(table_id, left_page_number, &left_page._raw_page);
+        buffer_read_page(table_id, right_page_number, &right_page._raw_page);
+        buffer_read_page(table_id, left_page_number, &left_page._raw_page);
 
         uint32_t left_num_keys = left_page._leaf_page.page_header.number_of_keys;
         uint32_t right_num_keys = right_page._leaf_page.page_header.number_of_keys;
@@ -988,9 +990,9 @@ namespace FIM{
                 left_page._internal_page.page_header.number_of_keys ++;
 
                 //update parent page number in page moved to neighbor
-                file_read_page(table_id, left_page._internal_page.key_and_page[left_num_keys].page_number, &tmp_page._raw_page);
+                buffer_read_page(table_id, left_page._internal_page.key_and_page[left_num_keys].page_number, &tmp_page._raw_page);
                 tmp_page._leaf_page.page_header.parent_page_number = left_page_number;
-                file_write_page(table_id, left_page._internal_page.key_and_page[left_num_keys].page_number, &tmp_page._raw_page);
+                buffer_write_page(table_id, left_page._internal_page.key_and_page[left_num_keys].page_number, &tmp_page._raw_page);
             }
             else{
                 //right page need one more key case
@@ -1019,13 +1021,13 @@ namespace FIM{
                 right_page._internal_page.page_header.number_of_keys ++;
 
                 //update parent page number in page moved to neighbor
-                file_read_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
+                buffer_read_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
                 tmp_page._leaf_page.page_header.parent_page_number = right_page_number;
-                file_write_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
+                buffer_write_page(table_id, right_page._internal_page.leftmost_page_number, &tmp_page._raw_page);
             }
         }
 
-        file_read_page(table_id, left_page._internal_page.page_header.parent_page_number, &parent_page._raw_page); //get parent page
+        buffer_read_page(table_id, left_page._internal_page.page_header.parent_page_number, &parent_page._raw_page); //get parent page
         uint32_t parent_num_keys = parent_page._internal_page.page_header.number_of_keys;
 
         //find old middle key's index and update key value with new middle key
@@ -1038,11 +1040,40 @@ namespace FIM{
         }
         
         //save changes in three pages
-        file_write_page(table_id, left_page._internal_page.page_header.parent_page_number, &parent_page._raw_page);
-        file_write_page(table_id, right_page_number, &right_page._raw_page);
-        file_write_page(table_id, left_page_number, &left_page._raw_page);
+        buffer_write_page(table_id, left_page._internal_page.page_header.parent_page_number, &parent_page._raw_page);
+        buffer_write_page(table_id, right_page_number, &right_page._raw_page);
+        buffer_write_page(table_id, left_page_number, &left_page._raw_page);
 
         return;
     }
 }
 
+int idx_insert_by_key(int64_t table_id, int64_t key, char *value, uint16_t val_size){
+    try{
+        return FIM::insert_record(table_id,key,value,val_size);
+    }
+    catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}
+
+int idx_find_by_key(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size){
+    try{
+        return FIM::find_record(table_id,key,ret_val,val_size);
+    }
+    catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}
+
+int idx_delete_by_key(int64_t table_id, int64_t key){
+    try{
+        return FIM::delete_record(table_id,key);
+    }
+    catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}

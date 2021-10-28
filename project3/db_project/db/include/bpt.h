@@ -4,8 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <algorithm>
-#include "page.h"
-#include "file.h"
+#include "buffer.h"
 
 #define DEFAULT_ORDER 124
 
@@ -17,6 +16,19 @@
 #define MAX_KEY_NUMBER DEFAULT_ORDER*2 //max number of keys in internal page
 #define MAX_FREE_SPACE 2500 //max free space in leaf page
 
+//Insert input record with its size to data file at the right place.
+//If success, return 0. Otherwise, return non zero value.
+int idx_insert_by_key(int64_t table_id, int64_t key, char *value, uint16_t val_size);
+
+//Find the record containing input key.
+//If found matching key, store matched value string in ret_val and matched size in val_size.
+//If success, return 0. Otherwise, return non zero value.
+//The caller should allocate memory for a record structure
+int idx_find_by_key(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size);
+
+//Find the matching record and delete it if found.
+//If success, return 0. Otherwise, return non zero value.
+int idx_delete_by_key(int64_t table_id, int64_t key);
 
 //inner struct and function used in FileandIndexManager
 namespace FIM{
@@ -76,7 +88,7 @@ namespace FIM{
         FIM::leaf_page_t _leaf_page;
     };
 
-    //get page from DSM and return new page number
+    //get page from BM and return new page number
     pagenum_t make_page(int64_t table_id);
     
     //change root page number in header page

@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include "file.h"
+#include "buffer.h"
 #include "bpt.h"
 
 //Open existing data file using 'pathname' or create one if not existed.
