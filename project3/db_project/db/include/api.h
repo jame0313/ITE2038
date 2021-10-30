@@ -1,8 +1,6 @@
 #pragma once
 
 #include <stdio.h>
-#include "file.h"
-#include "buffer.h"
 #include "bpt.h"
 
 //Open existing data file using 'pathname' or create one if not existed.
@@ -26,7 +24,7 @@ int db_delete(int64_t table_id, int64_t key);
 
 //Initialize database management system.
 //If success, return 0. Otherwise, return non zero value.
-int init_db(int num_buf = 1024);
+int init_db(int num_buf = DEFAULT_BUFFER_SIZE);
 
 //Shutdown your database management system
 //If success, return 0. Otherwise, return non zero value.

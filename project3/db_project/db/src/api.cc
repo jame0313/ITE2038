@@ -1,8 +1,7 @@
 #include "api.h"
 
 int init_db(int num_buf){
-    init_buffer();
-    return 0;
+    return init_buffer(num_buf);
 }
 
 int shutdown_db(){
