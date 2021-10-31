@@ -17,7 +17,7 @@ static const std::string CHARACTERS {
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"};
 
 static const std::string BASE_TABLE_NAME { "table" };
-static constexpr int NUM_TABLES { 1 };
+static constexpr int NUM_TABLES { 5 };
 
 static constexpr int NUM_KEYS { 100000 };
 
@@ -123,7 +123,6 @@ int main( int argc, char ** argv ) {
 			}
 		}
 		std::cout << "[FIND END AGAIN]\n";
-		remove(const_cast<char*>(t.first.c_str()));
 		std::cout << "[TABLE : " << t.first << " END]\n\n";
 		
 	}
@@ -135,6 +134,7 @@ func_exit:
 	if (shutdown_db() != 0) {
 		return 0;
 	}
+	for (auto& t : tables) remove(const_cast<char*>(t.first.c_str()));
 	std::cout << "[SHUTDOWN END]\n";
 	return 0;
 }

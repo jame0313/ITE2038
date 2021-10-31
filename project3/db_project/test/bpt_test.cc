@@ -50,10 +50,10 @@ TEST(FileandIndexManager, BASIC_TEST){
         ASSERT_EQ(db_find(tid,key_list[idx_list[i]],NULL,NULL), 0)
         <<"CAN'T FIND "<<key_list[idx_list[i]]<<" in INSERTION\n";
     }
-    /*shutdown_db();
+    shutdown_db();
     init_db();
     tid = open_table(path);
-    */
+    
     std::shuffle(idx_list.begin(), idx_list.end(), rng);
     for(int j=0; j<num; j++){
         int i = idx_list[j];
