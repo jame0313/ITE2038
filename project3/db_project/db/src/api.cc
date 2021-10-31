@@ -17,7 +17,7 @@ int shutdown_db(){
 
 int64_t open_table(char *pathname){
     try{
-        int64_t tid = buffer_open_table_file(pathname);
+        int64_t tid = file_open_table_file(pathname);
         return tid;
     }catch(const char *e){
         perror(e);

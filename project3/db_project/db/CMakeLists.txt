@@ -5,6 +5,7 @@ ${DB_SOURCE_DIR}/file.cc
   ${DB_SOURCE_DIR}/buffer.cc
   ${DB_SOURCE_DIR}/bpt.cc
   ${DB_SOURCE_DIR}/api.cc
+  ${DB_SOURCE_DIR}/wildcard.cc
   # Add your sources here
   # ${DB_SOURCE_DIR}/foo/bar/your_source.cc
   )
@@ -16,6 +17,7 @@ set(DB_HEADERS
   ${DB_HEADER_DIR}/buffer.h
   ${DB_HEADER_DIR}/bpt.h
   ${DB_HEADER_DIR}/api.h
+  ${DB_HEADER_DIR}/wildcard.h
   # Add your headers here
   # ${DB_HEADER_DIR}/foo/bar/your_header.h
   )
