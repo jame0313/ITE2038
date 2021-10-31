@@ -26,29 +26,6 @@ namespace BM{
         return hash1 ^ hash2 + 0x9e3779b9 + (hash2<<6) + (hash2>>2);
     }
 
-    bool is_pagenum_valid(int64_t table_id, pagenum_t pagenum){
-        if(!pagenum) return true; //header page case
-
-        //load header page data to get number of page attrib
-        BM::ctrl_blk *header_blk;
-        BM::_bm_page_t *header_page;
-
-        header_blk = BM::get_ctrl_blk_from_buffer(table_id, 0); //get header page block
-
-        header_page = reinterpret_cast<BM::_bm_page_t*>(header_blk->frame_ptr);
-
-        //check boundary
-        return pagenum < header_page->_header_page.number_of_pages;
-    }
-
-    void init_free_page(frame_t* pg, pagenum_t nxt_page_number){
-        memset(pg, 0, sizeof(page_t)); //clear all field
-        //use _bm_page_t to reinterpret bitfield
-        _bm_page_t *bm_pg = reinterpret_cast<_bm_page_t*>(pg);
-        //init free page with arg
-        bm_pg->_free_page.nxt_free_page_number = nxt_page_number;
-    }
-
     void flush_frame_to_file(blknum_t blknum){
         //get given block in the list
         ctrl_blk* blk = &BM::ctrl_blk_list[blknum];
@@ -60,7 +37,7 @@ namespace BM{
         page_id pid = {table_id, pagenum}; //make page_id to use as search key in hash table
         if(BM::hash_table.find(pid)!=BM::hash_table.end()){
             //found case
-            //return corresponging block number
+            //return corresponding block number
             return BM::hash_table[pid];
         }
         else{
@@ -193,130 +170,27 @@ int init_buffer(int num_buf){
     return 0;
 }
 
-// Open existing table file or create one if it doesn't exist
-int64_t buffer_open_table_file(const char* pathname){
-    //just pass to DSM api call
-    return file_open_table_file(pathname);
-}
-
 // Allocate a page
 pagenum_t buffer_alloc_page(int64_t table_id){
-    BM::ctrl_blk *header_blk, *nxt_blk;
-    BM::_bm_page_t *header_page, *nxt_page;
-
-    header_blk = BM::get_ctrl_blk_from_buffer(table_id, 0); //get header page block
-    header_blk->is_pinned ++;
-
-    header_page = reinterpret_cast<BM::_bm_page_t*>(header_blk->frame_ptr);
+    //read new page
+    pagenum_t nxt_page_number = file_alloc_page(table_id);
     
-    uint64_t nxt_page_number = header_page->_header_page.free_page_number;
-
-    if(nxt_page_number){
-        //exist free page in list
-
-        //read free page
-        nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
-        nxt_blk->is_pinned ++;
-
-        nxt_page = reinterpret_cast<BM::_bm_page_t*>(nxt_blk->frame_ptr);
-
-        //make header page to point next free page in list
-        header_page->_header_page.free_page_number = nxt_page->_free_page.nxt_free_page_number;
-        //init new page
-        BM::init_free_page(&nxt_page->_raw_frame,0);
-
-        //write changes in header page
-        header_blk->is_dirty = true;
-        header_blk->is_pinned --;
-    }
-    else{
-        //no free page in list (db file grow occured)
-
-        //get current number of page
-        uint64_t current_number_of_pages = header_page->_header_page.number_of_pages;
-        //make new pages as much as current number of page
-        size_t num_of_new_pages = current_number_of_pages;
-        
-        //set to be allocated page to position of first new page 
-        nxt_page_number = current_number_of_pages;
-
-        //init header page to point second new page and grow page size twice
-        header_page->_header_page.free_page_number = current_number_of_pages + 1;
-        header_page->_header_page.number_of_pages <<= 1;
-
-        //init free page lists
-        //wipe out the first page before return the page number
-        //init second page to last page to point next free page
-        for(uint64_t i=0;i<num_of_new_pages;i++){
-            //init free page and save changes
-            //use 0 when need for wipe or indicate end of list
-            //use current_number_of_pages + i + 1 to point next free page
-            //this make linked free page list sequentially
-            nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, current_number_of_pages + i);
-            nxt_blk->is_pinned ++;
-
-            nxt_page = reinterpret_cast<BM::_bm_page_t*>(nxt_blk->frame_ptr);
-
-            BM::init_free_page(&nxt_page->_raw_frame, (i==0||i+1>=num_of_new_pages?0:current_number_of_pages+i+1));
-            
-            nxt_blk->is_dirty = true;
-            nxt_blk->is_pinned --;
-        }
-
-        nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
-        nxt_blk->is_pinned ++;
-
-        //save header changes after making new free page list
-        header_blk->is_dirty = true;
-        header_blk->is_pinned --;
-    }
+    //load new page in buffer
+    BM::ctrl_blk* nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
+    nxt_blk->is_pinned ++;
 
     return nxt_page_number;
 }
 
 // Free a page
 void buffer_free_page(int64_t table_id, pagenum_t pagenum){
-    //check pagenum is valid
-    if(!BM::is_pagenum_valid(table_id, pagenum)){
-        throw "pagenum is out of bound in buffer_free_page";
-    }
-    //check pagenum is header page
-    if(!pagenum){
-        throw "free header page";
-    }
-    
-    BM::ctrl_blk *header_blk, *nxt_blk;
-    BM::_bm_page_t *header_page, *nxt_page;
-
-    header_blk = BM::get_ctrl_blk_from_buffer(table_id, 0); //get header page block
-    header_blk->is_pinned ++;
-
-    header_page = reinterpret_cast<BM::_bm_page_t*>(header_blk->frame_ptr);
-
-    //read free page to return
-    nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, pagenum);
-
-    nxt_page = reinterpret_cast<BM::_bm_page_t*>(nxt_blk->frame_ptr);
-
-    //put the given page in the beginning of the list (LIFO)
-    //init new page to point header page's nxt free page value
-    BM::init_free_page(&nxt_page->_raw_frame, header_page->_header_page.free_page_number);
-    //make header page to point given page number
-    header_page->_header_page.free_page_number = pagenum;
-
-    //write changes
-    header_blk->is_dirty = true;
-    header_blk->is_pinned --;
-    nxt_blk->is_dirty = true;
-    nxt_blk->is_pinned --;
+    BM::ctrl_blk* cnt_blk = BM::get_ctrl_blk_from_buffer(table_id, pagenum);
+    cnt_blk->is_dirty = 0; //wipe block to be freed
+    return file_free_page(table_id, pagenum);
 }
 
-// get a page pointer from buffer
+// read a page from buffer
 void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool readonly){
-    //check pagenum is valid
-    if(!BM::is_pagenum_valid(table_id, pagenum)){
-        throw "pagenum is out of bound in buffer_read_page";
-    }
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     if(!readonly){
@@ -335,18 +209,17 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
 
 // write a page to buffer
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
-    //check pagenum is valid
-    if(!BM::is_pagenum_valid(table_id, pagenum)){
-        throw "pagenum is out of bound in buffer_write_page";
-    }
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
+    if(!ret_blk->is_pinned){
+        //not pinned to be written
+        throw "invalid write access";
+    }
     //copy page content to dest
     memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
     ret_blk->is_dirty = true; //set dirty bit on
     ret_blk->is_pinned --; //set unpin
 }
-
 
 // Flush all and destroy
 void buffer_close_table_file(){
@@ -365,4 +238,3 @@ void buffer_close_table_file(){
     //clear the hash table
     BM::hash_table.clear();
 }
-

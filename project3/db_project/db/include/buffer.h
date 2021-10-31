@@ -16,23 +16,17 @@ typedef std::pair<int64_t, pagenum_t> page_id;
 //return 0 if success or non-zero if fail
 int init_buffer(int num_buf = DEFAULT_BUFFER_SIZE);
 
-// Open existing table file or create one if it doesn't exist
-int64_t buffer_open_table_file(const char* pathname);
-
 // Allocate a page
 pagenum_t buffer_alloc_page(int64_t table_id);
 
 // Free a page
 void buffer_free_page(int64_t table_id, pagenum_t pagenum);
 
-// get a page pointer from buffer
+// read a page from buffer
 void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool readonly = false);
 
 // Write a page to buffer
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);
-
-//return page to buffer
-//void buffer_return_page(int64_t table_id, pagenum_t pagenum);
 
 // Flush all and destroy
 void buffer_close_table_file();
@@ -79,9 +73,6 @@ namespace BM{
         BM::free_page_t _free_page;
     };
 
-    //init given page to free page format
-    void init_free_page(frame_t* pg, pagenum_t nxt_page_number);
-
     //flush frame in given control block 
     void flush_frame_to_file(blknum_t blknum);
 
@@ -104,8 +95,4 @@ namespace BM{
     //return control block pointer or
     //throw msg if it can't evict
     ctrl_blk* get_ctrl_blk_from_buffer(int64_t table_id, pagenum_t pagenum);
-
-
-
-
 }

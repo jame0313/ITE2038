@@ -731,8 +731,6 @@ namespace FIM{
 
         pagenum_t new_root_page_number;
 
-        buffer_read_page(table_id, root_page_number, &root_page._raw_page); //get current root again
-
         if(root_page._leaf_page.page_header.is_leaf){
             //root page was leaf page case
             //deleted the only one page left in tree
@@ -765,7 +763,7 @@ namespace FIM{
         if(is_leftmost) std::swap(page_number, neighbor_page_number); //swap again to restore status
 
         //get two pages
-        buffer_read_page(table_id, right_page_number, &right_page._raw_page);
+        buffer_read_page(table_id, right_page_number, &right_page._raw_page, true);
         buffer_read_page(table_id, left_page_number, &left_page._raw_page);
 
         uint32_t left_num_keys = left_page._leaf_page.page_header.number_of_keys;
