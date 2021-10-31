@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "file.h"
+#include "api.h"
 #include <vector>
 #include <algorithm>
 
@@ -9,6 +10,7 @@
 TEST(DiskSpaceManager, FileInitialization){
     //init test
     const char* path = "./FileInitialization.db";
+    init_db();
     int64_t tid = file_open_table_file(path);
     int fd = DSM::get_file_descriptor(tid);
 
@@ -37,6 +39,7 @@ TEST(DiskSpaceManager, FileInitialization){
 TEST(DiskSpaceManager, PageManagement){
     //init test
     const char* path = "./PageManagement.db";
+    init_db();
     int64_t tid = file_open_table_file(path);
     int fd = DSM::get_file_descriptor(tid);
     
@@ -87,6 +90,7 @@ TEST(DiskSpaceManager, PageManagement){
 TEST(DiskSpaceManager, PageIO){
     //init page
     const char* path = "./PageIO.db";
+    init_db();
     int64_t tid = file_open_table_file(path);
     int fd = DSM::get_file_descriptor(tid);
     
@@ -135,6 +139,7 @@ TEST(DiskSpaceManager, ErrorHandling){
     //init test
     const char* path = "./ErrorHandling.db";
     const char* dup_path = "./././ErrorHandling.db";
+    init_db();
     int64_t tid = file_open_table_file(path);
     int fd = DSM::get_file_descriptor(tid);
 
@@ -154,9 +159,9 @@ TEST(DiskSpaceManager, ErrorHandling){
     uint64_t num_of_page = header_page._header_page.number_of_pages;
     
     //check out of bound
-    //EXPECT_THROW(file_read_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
-    //EXPECT_THROW(file_write_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
-    //EXPECT_THROW(file_free_page(tid,num_of_page),const char*)<<"allowed out of bound";
+    EXPECT_THROW(file_read_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
+    EXPECT_THROW(file_write_page(tid,num_of_page,&tmp),const char*)<<"allowed out of bound";
+    EXPECT_THROW(file_free_page(tid,num_of_page),const char*)<<"allowed out of bound";
 
     //check header page case
     EXPECT_THROW(file_free_page(tid,0),const char*)<<"allowed header page free";
@@ -174,6 +179,7 @@ TEST(DiskSpaceManager, ErrorHandling){
 TEST(DiskSpaceManager, FileGrowTest){
     //init test
     const char* path = "./FileGrowTest.db";
+    init_db();
     int64_t tid = file_open_table_file(path);
     int fd = DSM::get_file_descriptor(tid);
     
