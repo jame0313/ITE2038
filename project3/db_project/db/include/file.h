@@ -1,5 +1,6 @@
 #pragma once
 #include "page.h"
+#include "wildcard.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>

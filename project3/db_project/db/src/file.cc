@@ -153,7 +153,7 @@ pagenum_t file_alloc_page(int64_t table_id){
     DSM::_dsm_page_t header_page;
 
     //read header page
-    DSM::load_page_from_file(fd,0,&header_page._raw_page);
+    get_header_page_from_multiple_layer(table_id, &header_page._raw_page);
 
     //page number to alloc(return value)
     uint64_t nxt_page_number = header_page._header_page.free_page_number;
@@ -171,7 +171,7 @@ pagenum_t file_alloc_page(int64_t table_id){
         DSM::init_free_page(&nxt_page._raw_page,0);
 
         //write changes in header page and allocated page
-        DSM::store_page_to_file(fd,0,&header_page._raw_page);
+        set_header_page_from_multiple_layer(table_id, &header_page._raw_page);
         DSM::store_page_to_file(fd,nxt_page_number,&nxt_page._raw_page);
     }
     else{
@@ -204,7 +204,7 @@ pagenum_t file_alloc_page(int64_t table_id){
         }
 
         //save header file changes in file after making new free page list
-        DSM::store_page_to_file(fd, 0, &header_page._raw_page);
+        set_header_page_from_multiple_layer(table_id, &header_page._raw_page);
     }
 
     return nxt_page_number;
@@ -228,7 +228,7 @@ void file_free_page(int64_t table_id, pagenum_t pagenum){
     DSM::_dsm_page_t header_page, new_page;
 
     //read header page
-    DSM::load_page_from_file(fd,0,&header_page._raw_page);
+    get_header_page_from_multiple_layer(table_id, &header_page._raw_page);
 
     //put the given page in the beginning of the list (LIFO)
     //init new page to point header page's nxt free page value
@@ -238,7 +238,7 @@ void file_free_page(int64_t table_id, pagenum_t pagenum){
     
     //write changes in header page and freed page
     DSM::store_page_to_file(fd,pagenum,&new_page._raw_page);
-    DSM::store_page_to_file(fd,0,&header_page._raw_page);
+    set_header_page_from_multiple_layer(table_id, &header_page._raw_page);
 }
 
 void file_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest){
@@ -248,7 +248,6 @@ void file_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest){
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
-        return; //not used (buffer manager check this)
         throw "pagenum is out of bound in file_read_page";
     }
 
@@ -263,7 +262,6 @@ void file_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     }
     //check pagenum is valid
     if(!DSM::is_pagenum_valid(fd,pagenum)){
-        return; //not used (buffer manager check this)
         throw "pagenum is out of bound in file_write_page";
     }
 
