@@ -175,7 +175,7 @@ pagenum_t buffer_alloc_page(int64_t table_id){
     //read new page
     pagenum_t nxt_page_number = file_alloc_page(table_id);
     
-    //load new page in buffer
+    //load new page
     BM::ctrl_blk* nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
     nxt_blk->is_pinned ++;
 
