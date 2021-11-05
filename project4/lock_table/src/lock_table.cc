@@ -15,7 +15,6 @@ struct hash_pair {
   }
 };
 
-
 std::unordered_map<page_id, lock_t*, hash_pair> hash_table;
 
 pthread_mutex_t mutex;
@@ -44,12 +43,10 @@ lock_t* find_lock_in_hash_table(int table_id, int64_t pagenum){
   }
 }
 
-
 int init_lock_table() {
   pthread_mutexattr_init(&mattr);
   pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_DEFAULT);
   pthread_mutex_init(&mutex, &mattr);
-
   hash_table.clear();
   return 0;
 }
@@ -69,7 +66,6 @@ lock_t* lock_acquire(int table_id, int64_t key) {
     else{
       head->nxt = ret;
       head->prev = ret;
-
       ret->prev = head;
       ret->sentinel = head;
     }
@@ -78,7 +74,6 @@ lock_t* lock_acquire(int table_id, int64_t key) {
     lock_t* head = new lock_t;
     head->nxt = ret;
     head->prev = ret;
-
     ret->prev = head;
     head->sentinel = ret->sentinel = head;
     hash_table[{table_id,key}] = head;
@@ -90,19 +85,13 @@ lock_t* lock_acquire(int table_id, int64_t key) {
 int lock_release(lock_t* lock_obj) {
   pthread_mutex_lock(&mutex);
   lock_t* head = lock_obj->sentinel;
-  pthread_cond_t* sig = &lock_obj->nxt->cond;
+  lock_obj->prev->nxt = lock_obj->nxt;
   if(lock_obj->nxt){
-    lock_obj->prev->nxt = lock_obj->nxt;
+    pthread_cond_t* sig = &lock_obj->nxt->cond;
     lock_obj->nxt->prev = lock_obj->prev;
-    delete lock_obj;
-    pthread_cond_broadcast(sig);
+    pthread_cond_signal(sig);
   }
-  else{
-    lock_obj->prev->nxt = nullptr;
-    lock_obj->prev->prev = nullptr;
-    delete lock_obj;
-  }
-  
+  delete lock_obj;
   pthread_mutex_unlock(&mutex);
   return 0;
 }
