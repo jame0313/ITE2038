@@ -32,6 +32,7 @@ struct lock_t {
   lock_t* nxt = nullptr; //next pointer in lock list
   lock_t* sentinel = nullptr; //sentinel(head) pointer
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER; //conditional variable
+  bool flag = false; //flag for cond
 };
 
 typedef struct lock_t lock_t;
@@ -87,7 +88,9 @@ lock_t* lock_acquire(int table_id, int64_t key) {
       ret->sentinel = head;
 
       //wait for release
-      pthread_cond_wait(&ret->cond, &mutex);
+      while (!ret->flag){
+        pthread_cond_wait(&ret->cond, &mutex);
+      }
     }
     else{
       //no predecessor's lock case
@@ -133,6 +136,7 @@ int lock_release(lock_t* lock_obj) {
     //connect with prev object(head)
     lock_obj->nxt->prev = lock_obj->prev;
     //signal to wake up
+    lock_obj->nxt->flag = true;
     pthread_cond_signal(sig);
   }
   //delete object
