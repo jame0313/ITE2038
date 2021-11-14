@@ -3,8 +3,19 @@
 #include <unordered_map>
 #include <utility>
 
+//lock object
+struct lock_t {
+  lock_t* prev = nullptr; //prev pointer in lock list
+  lock_t* nxt = nullptr; //next pointer in lock list
+  lock_t* sentinel = nullptr; //sentinel(head) pointer
+  pthread_cond_t cond = PTHREAD_COND_INITIALIZER; //conditional variable
+  bool flag = false; //flag for cond
+};
+
+typedef struct lock_t lock_t;
+
 //combine two id with single object
-typedef std::pair<int, int64_t> page_id;
+typedef std::pair<int64_t, int64_t> page_id;
 
 //structure for hashing pair object
 //hash algorithm used in boost lib and std::hash
@@ -26,19 +37,8 @@ std::unordered_map<page_id, lock_t*, hash_pair> hash_table;
 pthread_mutex_t mutex;
 pthread_mutexattr_t mattr;
 
-//lock object
-struct lock_t {
-  lock_t* prev = nullptr; //prev pointer in lock list
-  lock_t* nxt = nullptr; //next pointer in lock list
-  lock_t* sentinel = nullptr; //sentinel(head) pointer
-  pthread_cond_t cond = PTHREAD_COND_INITIALIZER; //conditional variable
-  bool flag = false; //flag for cond
-};
-
-typedef struct lock_t lock_t;
-
-lock_t* find_lock_in_hash_table(int table_id, int64_t pagenum){
-  page_id pid = {table_id, pagenum}; //make page_id to use as search key in hash table
+lock_t* find_lock_in_hash_table(int table_id, int64_t key){
+  page_id pid = {table_id, key}; //make page_id to use as search key in hash table
   if(hash_table.find(pid)!=hash_table.end()){
       //found case
       //return corresponding lock object
@@ -65,11 +65,15 @@ int init_lock_table() {
   return 0;
 }
 
-//allocate and append a new lock obejct to the lock list of
+//allocate and append a new lock object to the lock list of
 //the record having key
 lock_t* lock_acquire(int table_id, int64_t key) {
+  
+  int status_code; //use for chk pthread call error
+
   //begin critical section
-  pthread_mutex_lock(&mutex);
+  status_code = pthread_mutex_lock(&mutex);
+  if(status_code) return nullptr; //error
 
   //get head lock from hash table
   lock_t* head = find_lock_in_hash_table(table_id,key);
@@ -118,15 +122,21 @@ lock_t* lock_acquire(int table_id, int64_t key) {
     hash_table[{table_id,key}] = head;
   }
   //end critical section
-  pthread_mutex_unlock(&mutex);
+  status_code = pthread_mutex_unlock(&mutex);
+  if(status_code) return nullptr; //error
+
   //return lock object
   return ret;
 };
 
 //remove the lock_obj from the lock list
 int lock_release(lock_t* lock_obj) {
+  int status_code; //use for chk pthread call error
+
   //begin critical section
-  pthread_mutex_lock(&mutex);
+  status_code = pthread_mutex_lock(&mutex);
+  if(status_code) return status_code; //error
+
   lock_obj->prev->nxt = lock_obj->nxt; // pop from list
   if(lock_obj->nxt){
     //successor's lock existed case
@@ -143,5 +153,7 @@ int lock_release(lock_t* lock_obj) {
   delete lock_obj;
   //end critical section
   pthread_mutex_unlock(&mutex);
+  if(status_code) return status_code; //error
+  
   return 0;
 }
