@@ -3,6 +3,9 @@
 #include <unordered_map>
 #include <utility>
 
+//combine two id with single object
+typedef std::pair<int64_t, int64_t> record_id;
+
 //lock object
 struct lock_t {
   lock_t* prev = nullptr; //prev pointer in lock list
@@ -10,12 +13,10 @@ struct lock_t {
   lock_t* sentinel = nullptr; //sentinel(head) pointer
   pthread_cond_t cond = PTHREAD_COND_INITIALIZER; //conditional variable
   bool flag = false; //flag for cond
+  record_id rid; //rid for head
 };
 
 typedef struct lock_t lock_t;
-
-//combine two id with single object
-typedef std::pair<int64_t, int64_t> page_id;
 
 //structure for hashing pair object
 //hash algorithm used in boost lib and std::hash
@@ -30,19 +31,19 @@ struct hash_pair {
   }
 };
 
-//hash table that mapping page_id to lock object
-std::unordered_map<page_id, lock_t*, hash_pair> hash_table;
+//hash table that mapping record_id to lock object
+std::unordered_map<record_id, lock_t*, hash_pair> hash_table;
 
 //shared mutex object
 pthread_mutex_t mutex;
 pthread_mutexattr_t mattr;
 
 lock_t* find_lock_in_hash_table(int table_id, int64_t key){
-  page_id pid = {table_id, key}; //make page_id to use as search key in hash table
-  if(hash_table.find(pid)!=hash_table.end()){
+  record_id rid = {table_id, key}; //make record_id to use as search key in hash table
+  if(hash_table.find(rid)!=hash_table.end()){
       //found case
       //return corresponding lock object
-      return hash_table[pid];
+      return hash_table[rid];
   }
   else{
       //not found case
@@ -80,6 +81,10 @@ lock_t* lock_acquire(int table_id, int64_t key) {
   lock_t* ret = new lock_t; //make new lock
   if(head){
     //head lock existed case
+    if(head->rid != std::make_pair((int64_t)table_id,(key))){
+      //not matched case
+      return nullptr; //error
+    }
     if(head->nxt){
       //predecessor's lock object existed case
 
@@ -111,6 +116,8 @@ lock_t* lock_acquire(int table_id, int64_t key) {
 
     //make new head object
     lock_t* head = new lock_t;
+
+    head->rid = {table_id,key}; //set rid
 
     //connect with head object
     head->nxt = ret;
