@@ -47,7 +47,7 @@ namespace LM{
     
     //insert lock head object into lock table
     //at the position where it's pagenum and table id is same with given parameter
-    //return new lock head object inserted
+    //return new lock head object's pointer inserted
     lock_head_t* insert_new_lock_head_in_table(int64_t table_id, pagenum_t pagenum);
 
     //detect deadlock will occur when given lock inserted into lock table
