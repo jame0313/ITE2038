@@ -18,6 +18,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Options for libraries
 option(USE_DB "Use the DB library" ON)
 option(USE_GOOGLE_TEST "Use GoogleTest for testing" ON)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
 # DB project library
 if(USE_DB)
@@ -33,6 +35,7 @@ endif()
 add_executable(${CMAKE_PROJECT_NAME} main.cc)
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC ${EXTRA_LIBS})
+target_link_libraries(${CMAKE_PROJECT_NAME} PUBLIC Threads::Threads)
 
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC
   "${PROJECT_BINARY_DIR}"

@@ -1,11 +1,13 @@
 # Sources
 set(DB_SOURCE_DIR src)
 set(DB_SOURCES
-${DB_SOURCE_DIR}/file.cc
+  ${DB_SOURCE_DIR}/file.cc
   ${DB_SOURCE_DIR}/buffer.cc
   ${DB_SOURCE_DIR}/bpt.cc
   ${DB_SOURCE_DIR}/api.cc
   ${DB_SOURCE_DIR}/wildcard.cc
+  ${DB_SOURCE_DIR}/trx.cc
+  ${DB_SOURCE_DIR}/lock.cc
   # Add your sources here
   # ${DB_SOURCE_DIR}/foo/bar/your_source.cc
   )
@@ -13,11 +15,14 @@ ${DB_SOURCE_DIR}/file.cc
 # Headers
 set(DB_HEADER_DIR include)
 set(DB_HEADERS
+  ${DB_HEADER_DIR}/page.h
   ${DB_HEADER_DIR}/file.h
   ${DB_HEADER_DIR}/buffer.h
   ${DB_HEADER_DIR}/bpt.h
   ${DB_HEADER_DIR}/api.h
   ${DB_HEADER_DIR}/wildcard.h
+  ${DB_HEADER_DIR}/trx.h
+  ${DB_HEADER_DIR}/lock.h
   # Add your headers here
   # ${DB_HEADER_DIR}/foo/bar/your_header.h
   )
