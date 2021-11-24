@@ -1,0 +1,278 @@
+#include "lock.h"
+
+namespace LM{
+    pthread_mutex_t lock_manager_latch = PTHREAD_MUTEX_INITIALIZER;
+
+    //hash table that mapping ctrl block in the list
+    //search key is page_id({table_id, pagenum})
+    //value is block num
+    std::unordered_map<page_id, lock_head_t*, LM::hash_pair> lock_table;
+
+    //code by boost lib
+    // https://www.boost.org/doc/libs/1_64_0/boost/functional/hash/hash.hpp
+    template <class T1, class T2>
+    size_t LM::hash_pair::operator()(const std::pair<T1, T2>& p) const {
+        auto hash1 = std::hash<T1>{}(p.first);
+        auto hash2 = std::hash<T2>{}(p.second);
+        //use magic number and some bit shift to fit hash feature
+        return hash1 ^ hash2 + 0x9e3779b9 + (hash2<<6) + (hash2>>2);
+    }
+
+    lock_head_t* find_lock_head_in_table(int64_t table_id, pagenum_t pagenum){
+        page_id pid = {table_id, pagenum}; //make page_id to use as search key in hash table
+        if(LM::lock_table.find(pid)!=LM::lock_table.end()){
+            //found case
+            //return corresponding object pointer
+            return LM::lock_table[pid];
+        }
+        else{
+            //not found case
+            //return null
+            return nullptr;
+        }
+    }
+
+    lock_head_t* insert_new_lock_head_in_table(int64_t table_id, pagenum_t pagenum){
+        //make and initialize new lock head
+        lock_head_t* lock_head = new lock_head_t{table_id,pagenum};
+        page_id pid = {table_id, pagenum}; //make page_id to use as search key in hash table
+        //insert lock head at pid
+        LM::lock_table.insert(std::make_pair(pid,lock_head));
+        return;
+    }
+
+    int detect_deadlock(lock_t* lock_obj, int source_trx_id, bool is_first){
+        if(!lock_obj){
+            //current lock object is NULL
+            //no lock in current trx
+            //no conflict here
+            return 0;
+        }
+
+        if(!is_first){
+            //not first step
+            //source transaction wait for current transaction
+            if(lock_obj->owner_trx_id == source_trx_id){
+                //current is actually source trx
+                //cycle will occur in lock table
+                //deadlock detected
+                return -1;
+            }
+            if(!lock_obj->sleeping_flag){
+                //current transaction doesn't wait for anything
+                //no out-degree edge in current trx
+                //no conflict here
+                return 0;
+            }
+        }
+
+        //find out-degree edge from current lock object in wait-for graph
+        //current trx may be conflicted with one X lock or several S locks
+        //find first conflicting X lock or a series of S locks
+
+        //current lock object's info
+        //use as distinguish conflicting lock in page lock list
+        int64_t key = lock_obj->record_id;
+        int trx_id = lock_obj->owner_trx_id;
+        int lock_mode = lock_obj->lock_mode;
+
+        //lock_head_t* lock_head = lock_obj->sentinel;
+        //start at right before current lock
+        lock_t* cnt_lock = lock_obj->prev_lock;
+
+        //flags for filter first conflicting lock
+        bool is_conflicted = false;
+        bool has_prev_shared_lock = false;
+        bool has_prev_exclusive_lock = false;
+
+        //searching phase
+        while(cnt_lock){
+            //find same record lock
+            //which trx id is not same (same trx lock is not conflicted)
+            //and at least one is X lock (only S lock doesn't make conflict)
+            if(cnt_lock->record_id == key && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
+                is_conflicted = true; //set conflict flag on
+
+                if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
+                    //current lock is X lock
+                    has_prev_exclusive_lock = true;
+                    if(has_prev_shared_lock){
+                        //there is conflicting S lock after this lock
+                        //no need to check further (we already checked all S lock)
+                        break;
+                    }
+                }
+                else{
+                    //current lock is S lock
+                    has_prev_shared_lock = true;
+                }
+
+                //current trx waits for cnt_lock's trx(cnt_lock->owner_trx_id)
+
+                //get last lock in next step trx
+                lock_t* nxt_lock_obj = trx_get_last_lock_in_trx_list(cnt_lock->owner_trx_id);
+                
+                //check deadlock in next step trx
+                int ret = LM::detect_deadlock(nxt_lock_obj, source_trx_id, false);
+                if(ret == -1){
+                    //deadlock occured
+                    //return -1
+                    return ret;
+                }
+                
+                if(has_prev_exclusive_lock){
+                    //checked X lock in deadlock detection
+                    //no need to check further
+                    break;
+                }
+            }
+
+            //get previous lock
+            cnt_lock = cnt_lock->prev_lock;
+        }
+
+        //return 1 if conflicted or 0 if not
+        return is_conflicted?1:0;
+    }
+
+}
+
+int init_lock_table(void){
+    //initailize lock table
+    LM::lock_table.clear();
+
+    return 0;
+}
+
+lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode){
+    int status_code;
+
+    status_code = pthread_mutex_lock(&LM::lock_manager_latch);
+    if(status_code) return nullptr;
+
+    lock_head_t *lock_head = LM::find_lock_head_in_table(table_id,page_id);
+    lock_t* ret = new lock_t;
+    
+    ret->lock_mode = lock_mode;
+    ret->owner_trx_id = trx_id;
+    ret->record_id = key;
+
+    if(!lock_head){
+        lock_head = LM::insert_new_lock_head_in_table(table_id,page_id);
+    }
+    
+    if(lock_head->table_id != table_id || lock_head->page_id != page_id){
+        delete ret;
+        return nullptr;
+    }
+    
+    ret->prev_lock = lock_head->tail;
+    ret->sentinel = lock_head;
+
+    int flag = LM::detect_deadlock(ret, trx_id);
+
+    if(flag == -1){
+        //deadlock
+        delete ret;
+        return nullptr;
+    }
+
+    if(lock_head->tail){
+        lock_head->tail->nxt_lock = ret;
+    }
+    else{
+        lock_head->head = ret;
+    }
+
+    
+    lock_head->tail = ret;
+
+    trx_append_lock_in_trx_list(trx_id, ret);
+
+    if(flag == 1){
+        ret->sleeping_flag = true;
+
+        while(ret->sleeping_flag){
+            pthread_cond_wait(&ret->cond, &LM::lock_manager_latch);
+        }
+    }
+    
+    status_code = pthread_mutex_unlock(&LM::lock_manager_latch);
+    if(status_code){
+        delete ret;
+        return nullptr;
+    }
+
+    return ret;
+}
+
+int lock_release(lock_t* lock_obj){
+    int status_code;
+
+    status_code = pthread_mutex_lock(&LM::lock_manager_latch);
+    if(status_code) return status_code;
+
+    lock_head_t *lock_head = lock_obj->sentinel;
+
+    if(lock_obj->prev_lock){
+        lock_obj->prev_lock->nxt_lock = lock_obj->nxt_lock;
+    }
+    else{
+        lock_head->head = lock_obj->nxt_lock;
+    }
+
+    if(lock_obj->nxt_lock){
+        lock_obj->nxt_lock->prev_lock = lock_obj->prev_lock;
+    }
+    else{
+        lock_head->tail = lock_obj->prev_lock;
+    }
+
+    lock_t *cnt_lock = lock_obj->nxt_lock;
+    bool has_prev_shared_lock = false;
+    bool has_prev_exclusive_lock = false;
+
+    while(cnt_lock){
+        if(cnt_lock->record_id == lock_obj->record_id){
+            if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
+                has_prev_exclusive_lock = true;
+                if(has_prev_shared_lock) break;
+            }
+            else{
+                has_prev_shared_lock = true;
+            }
+
+            if(cnt_lock->sleeping_flag){
+                cnt_lock->sleeping_flag = false;
+                pthread_cond_signal(&cnt_lock->cond);
+            }
+
+            
+            if(has_prev_exclusive_lock) break;
+        }
+
+        cnt_lock = cnt_lock->nxt_lock;
+    }
+
+    delete lock_obj;
+
+    status_code = pthread_mutex_unlock(&LM::lock_manager_latch);
+    if(status_code) return status_code;
+
+    return 0;
+}
+
+void close_lock_table(){
+    pthread_mutex_lock(&LM::lock_manager_latch);
+
+    for(auto& it : LM::lock_table){
+        delete it.second;
+    }
+
+    LM::lock_table.clear();
+    
+    pthread_mutex_unlock(&LM::lock_manager_latch);
+
+    return;
+}
+
