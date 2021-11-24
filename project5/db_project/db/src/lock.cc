@@ -1,11 +1,12 @@
 #include "lock.h"
 
 namespace LM{
+    //lock manager latch
     pthread_mutex_t lock_manager_latch = PTHREAD_MUTEX_INITIALIZER;
 
-    //hash table that mapping ctrl block in the list
+    //hash table that mapping page lock list in the table
     //search key is page_id({table_id, pagenum})
-    //value is block num
+    //value is lock header's pointer
     std::unordered_map<page_id, lock_head_t*, LM::hash_pair> lock_table;
 
     //code by boost lib
