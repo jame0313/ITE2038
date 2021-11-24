@@ -1,4 +1,5 @@
 #include "buffer.h"
+#include <pthread.h>
 
 namespace BM{
     frame_t *frame_list; //frame(page) array
@@ -15,6 +16,9 @@ namespace BM{
     //front point LRU block and back point MRU block
     blknum_t ctrl_blk_list_front;
     blknum_t ctrl_blk_list_back;
+
+    //buffer manager latch
+    pthread_mutex_t buffer_manager_latch = PTHREAD_MUTEX_INITIALIZER;
 
     //code by boost lib
     // https://www.boost.org/doc/libs/1_64_0/boost/functional/hash/hash.hpp
@@ -49,12 +53,20 @@ namespace BM{
 
     blknum_t find_victim_blk_from_buffer(){
         blknum_t cnt_blk = ctrl_blk_list_front; //get LRU block
-        while(cnt_blk != ctrl_blk_list_back && BM::ctrl_blk_list[cnt_blk].is_pinned){
+
+        bool is_acquired = false;
+        while(cnt_blk != -1){
+            int status_code = pthread_mutex_trylock(&BM::ctrl_blk_list[cnt_blk].page_latch);
+            if(!status_code){
+                //acquired current blk
+                is_acquired = true;
+                break;
+            }
             //get nxt LRU block
             //since current block is pinned (can't evict)
             cnt_blk = BM::ctrl_blk_list[cnt_blk].lru_nxt_blk_number;
         }
-        if(!BM::ctrl_blk_list[cnt_blk].is_pinned){
+        if(is_acquired){
             //found case
             //return corresponging block number
             return cnt_blk;
@@ -100,6 +112,7 @@ namespace BM{
             //found case
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
+            
         }
         else{
             //not found case
@@ -116,6 +129,7 @@ namespace BM{
 
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
+            pthread_mutex_unlock(&ret_blk->page_latch);
             
             if(ret_blk->is_dirty){
                 //flush changes to disk if needed
@@ -129,7 +143,7 @@ namespace BM{
             //init block info
             ret_blk->pagenum = pagenum;
             ret_blk->table_id = table_id;
-            ret_blk->is_dirty = ret_blk->is_pinned = 0;
+            ret_blk->is_dirty = 0;
             
             //read page from disk by call DSM api
             file_read_page(table_id, pagenum, ret_blk->frame_ptr);
@@ -177,7 +191,7 @@ pagenum_t buffer_alloc_page(int64_t table_id){
     
     //load new page
     BM::ctrl_blk* nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
-    nxt_blk->is_pinned ++;
+    //nxt_blk->is_pinned ++;
 
     return nxt_page_number;
 }
@@ -191,8 +205,14 @@ void buffer_free_page(int64_t table_id, pagenum_t pagenum){
 
 // read a page from buffer
 void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool readonly){
+    int status_code;
+
+    status_code = pthread_mutex_lock(&BM::buffer_manager_latch);
+    if(status_code) return;
+
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
+    /*
     if(!readonly){
         //it can be written soon
         if(ret_blk->is_pinned){
@@ -201,24 +221,40 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
             throw "double write access";
         }
         ret_blk->is_pinned ++; //set pin
-    }
+    }*/
+    if(!readonly) pthread_mutex_lock(&ret_blk->page_latch);
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
+
+    status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
+    if(status_code) return;
     return;
 }
 
 // write a page to buffer
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
+    int status_code;
+
+    status_code = pthread_mutex_lock(&BM::buffer_manager_latch);
+    if(status_code) return;
+
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
-    if(!ret_blk->is_pinned){
+    /*if(!ret_blk->is_pinned){
         //not pinned to be written
         throw "invalid write access";
-    }
+    }*/
+
+
     //copy page content to dest
     memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
     ret_blk->is_dirty = true; //set dirty bit on
-    ret_blk->is_pinned --; //set unpin
+    //ret_blk->is_pinned --; //set unpin
+    pthread_mutex_unlock(&ret_blk->page_latch);
+
+    status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
+    if(status_code) return;
+    return;
 }
 
 // Flush all and destroy

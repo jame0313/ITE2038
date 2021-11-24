@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <algorithm>
 #include "buffer.h"
+#include "trx.h"
 
 #define DEFAULT_ORDER 124
 
@@ -29,6 +30,10 @@ int idx_find_by_key(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_
 //Find the matching record and delete it if found.
 //If success, return 0. Otherwise, return non zero value.
 int idx_delete_by_key(int64_t table_id, int64_t key);
+
+int idx_find_by_key_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size, int trx_id);
+
+int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id);
 
 //inner struct and function used in FileandIndexManager
 namespace FIM{
@@ -106,6 +111,9 @@ namespace FIM{
     //you can get existence state by using key only and setting ret_val and val_size null
     //return 0 if success or -1 if fail
     int find_record(int64_t table_id, int64_t key, char *ret_val = NULL, uint16_t* val_size = NULL);
+
+    int find_record_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t* val_size, int trx_id);
+    int update_record_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id);
     
     //insert master function
     //insert record in tree

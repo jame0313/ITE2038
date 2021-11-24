@@ -101,6 +101,75 @@ namespace FIM{
         return -1; //can't find record
     }
 
+    int find_record_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t* val_size, int trx_id){
+        
+        //find leaf page
+        pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
+        if(!leaf_page_number) return -1; //can't find leaf page
+
+        lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, SHARED_LOCK_MODE);
+        if(!shared_lock){
+            trx_abort_txn(trx_id);
+            return -1;
+        }
+
+        _fim_page_t leaf_page;
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+
+        uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
+
+        for(uint32_t i = 0; i < num_keys; i++){
+            if(leaf_page._leaf_page.slot[i].key == key){
+                //find record
+                if(ret_val){
+                    //push record value when ret_val is not NULL
+                    *val_size = leaf_page._leaf_page.slot[i].size;
+                    memcpy(ret_val,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*val_size);
+                }
+
+                //TODO release page lock
+                buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                return 0;
+            }
+        }
+        return -1; //can't find record
+    }
+
+    int update_record_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id){
+        
+        //find leaf page
+        pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
+        if(!leaf_page_number) return -1; //can't find leaf page
+
+        lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, EXCLUSIVE_LOCK_MODE);
+        if(!shared_lock){
+            trx_abort_txn(trx_id);
+            return -1;
+        }
+
+        _fim_page_t leaf_page;
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+
+        uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
+
+        for(uint32_t i = 0; i < num_keys; i++){
+            if(leaf_page._leaf_page.slot[i].key == key){
+                //find record
+                if(values){
+                    //push record value when ret_val is not NULL
+                    *old_val_size = leaf_page._leaf_page.slot[i].size;
+                    memcpy(leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),values,new_val_size);
+                    //TODO whether change size?
+                    leaf_page._leaf_page.slot[i].size = new_val_size;
+                }
+                //TODO write changes to page
+                buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                return 0;
+            }
+        }
+        return -1; //can't find record
+    }
+
     int insert_record(int64_t table_id, int64_t key, char *value, uint16_t val_size){
         
         if(!FIM::find_record(table_id,key)) return -1; //there is key in tree already
@@ -1069,6 +1138,26 @@ int idx_find_by_key(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_
 int idx_delete_by_key(int64_t table_id, int64_t key){
     try{
         return FIM::delete_record(table_id,key);
+    }
+    catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}
+
+int idx_find_by_key_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size, int trx_id){
+    try{
+        return FIM::find_record_trx(table_id,key,ret_val,val_size,trx_id);
+    }
+    catch(const char *e){
+        perror(e);
+        return -1;
+    }
+}
+
+int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id){
+    try{
+        return FIM::update_record_trx(table_id,key,values,new_val_size,old_val_size,trx_id);
     }
     catch(const char *e){
         perror(e);
