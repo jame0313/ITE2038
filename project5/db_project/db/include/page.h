@@ -13,23 +13,23 @@ struct page_t {
 //lock head declaration for lock object 
 struct lock_head_t;
 
-//lock object
+//lock object structure
 struct lock_t{
-    pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-    lock_t *prev_lock = nullptr;
-    lock_t *nxt_lock = nullptr;
-    lock_t *nxt_lock_in_trx = nullptr;
-    lock_head_t *sentinel = nullptr;
+    pthread_cond_t cond = PTHREAD_COND_INITIALIZER; //cond var for sleeping
+    lock_t *prev_lock = nullptr; //previous lock in page lock list
+    lock_t *nxt_lock = nullptr; //next lock in page lock list
+    lock_t *nxt_lock_in_trx = nullptr; //next lock in trx lock list
+    lock_head_t *sentinel = nullptr; //lock header in lock list
     int64_t record_id;
-    int lock_mode = 0;
-    int owner_trx_id = 0;
-    bool sleeping_flag = false;
+    int lock_mode = 0; //lock mode
+    int owner_trx_id = 0; //trx id which try to acquire this lock 
+    bool sleeping_flag = false; //mark the lock is sleeping or not
 };
 
-//lock head object
+//lock header object structure
 struct lock_head_t{
     int64_t table_id;
     pagenum_t page_id;
-    lock_t *head = nullptr;
-    lock_t *tail = nullptr;
+    lock_t *head = nullptr; //first lock in the list
+    lock_t *tail = nullptr; //last lock in the list
 };
