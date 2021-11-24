@@ -32,8 +32,6 @@ void close_lock_table();
 
 //inner struct and function used in LockManager
 namespace LM{
-
-
     //inner structure for hashing pair object
     //hash algorithm used in boost lib + std::hash
     // https://www.boost.org/doc/libs/1_64_0/boost/functional/hash/hash.hpp
@@ -42,7 +40,21 @@ namespace LM{
         size_t operator()(const std::pair<T1, T2>& p) const;
     };
 
-    lock_head_t* find_lock_head_in_lock_table(int64_t table_id, pagenum_t _page_id);
-    void insert_new_lock_head_in_table(int64_t table_id, pagenum_t _page_id, lock_head_t* lock_head);
-    int detect_deadlock(lock_t* lock_obj, int source_trx_id, bool is_first);
+    //find lock head object in lock table
+    //where it's pagenum and table id is same with given parameter
+    //return object's pointer or null if not found
+    lock_head_t* find_lock_head_in_table(int64_t table_id, pagenum_t pagenum);
+    
+    //insert lock head object into lock table
+    //at the position where it's pagenum and table id is same with given parameter
+    //return new lock head object inserted
+    lock_head_t* insert_new_lock_head_in_table(int64_t table_id, pagenum_t pagenum);
+
+    //detect deadlock will occur when given lock inserted into lock table
+    //determine deadlock when lock object is owned by source trx (check cycle)
+    //If there is no deadlock, return 1 if there is conflict lock or 0 if not
+    //If there is deadlock, return -1
+    //source_trx_id should be first lock object's owner trx id 
+    //DO NOT SET is_first flag false at the first time(always return -1)
+    int detect_deadlock(lock_t* lock_obj, int source_trx_id, bool is_first = true);
 }

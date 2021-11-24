@@ -46,6 +46,7 @@ namespace TM{
     int make_new_txn_id();
     void insert_new_trx_in_table(int trx_id);
     void erase_trx_in_table(int trx_id);
+    void append_lock_in_table(int trx_id, lock_t* lock_obj);
     void remove_trx_log(int trx_id);
     void release_all_locks_in_trx(int trx_id);
     void rollback_trx_log(int trx_id);
