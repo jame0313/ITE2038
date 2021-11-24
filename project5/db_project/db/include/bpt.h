@@ -33,6 +33,8 @@ int idx_delete_by_key(int64_t table_id, int64_t key);
 
 int idx_find_by_key_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size, int trx_id);
 
+int idx_update_by_key(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size);
+
 int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id);
 
 //inner struct and function used in FileandIndexManager
@@ -107,12 +109,29 @@ namespace FIM{
     pagenum_t find_leaf_page(int64_t table_id, int64_t key);
 
     //find the record value with given key
-    //save record valud in ret_val(caller must provide it) and set size in val_size
+    //save record value in ret_val(caller must provide it) and set size in val_size
     //you can get existence state by using key only and setting ret_val and val_size null
     //return 0 if success or -1 if fail
     int find_record(int64_t table_id, int64_t key, char *ret_val = NULL, uint16_t* val_size = NULL);
 
+    //find the record value with given key with strict 2PL
+    //save record value in ret_val(caller must provide it) and set size in val_size
+    //you can get existence state by using key only and setting ret_val and val_size null
+    //return 0 if success or -1 if fail
     int find_record_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t* val_size, int trx_id);
+    
+    //update the record value with given key
+    //i.e. update into given values with the size of new_val_size
+    //store original value in old_val_size
+    //as no structure changed, new value's length should be less or equal to original length
+    //return 0 if success or -1 if fail
+    int update_record(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size);
+
+    //update the record value with given key with strict 2PL
+    //i.e. update into given values with the size of new_val_size
+    //store original value in old_val_size
+    //as no structure changed, new value's length should be less or equal to original length
+    //return 0 if success or -1 if fail
     int update_record_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id);
     
     //insert master function
