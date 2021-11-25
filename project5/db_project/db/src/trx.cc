@@ -151,6 +151,11 @@ namespace TM{
 }
 
 int init_trx_manager(void){
+
+    TM::GLOBAL_TXN_ID_LENGTH = 0;
+
+    TM::transaction_manager_latch = PTHREAD_MUTEX_INITIALIZER;
+
     //initailize trx table
     TM::trx_table.clear();
 

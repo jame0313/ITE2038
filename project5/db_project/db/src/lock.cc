@@ -139,6 +139,9 @@ namespace LM{
 }
 
 int init_lock_table(void){
+
+    LM::lock_manager_latch = PTHREAD_MUTEX_INITIALIZER;
+
     //initailize lock table
     LM::lock_table.clear();
 

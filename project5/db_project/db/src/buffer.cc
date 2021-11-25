@@ -160,6 +160,8 @@ namespace BM{
 int init_buffer(int num_buf){
     BM::BUFFER_SIZE = num_buf; //set buffer size
 
+    BM::buffer_manager_latch = PTHREAD_MUTEX_INITIALIZER;
+
     //init list
     BM::frame_list = new frame_t[num_buf];
     BM::ctrl_blk_list = new BM::ctrl_blk[num_buf];

@@ -1,7 +1,10 @@
 #include "api.h"
 
 int init_db(int num_buf){
-    return init_buffer(num_buf);
+    int ret = init_buffer(num_buf);
+    init_lock_table();
+    init_trx_manager();
+    return ret;
 }
 
 int shutdown_db(){
