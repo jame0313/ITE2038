@@ -177,6 +177,23 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         return nullptr; //error
     }
 
+    
+    //start at head lock
+    lock_t *cnt_lock = lock_head->head;
+
+    //searching phase
+    while(cnt_lock){
+        //find same record lock
+        //which trx id same and can use as lock
+        if(cnt_lock->record_id == key && cnt_lock->owner_trx_id == trx_id && (cnt_lock->lock_mode | (!lock_mode)) == EXCLUSIVE_LOCK_MODE){
+            delete ret;
+            return cnt_lock;
+        }
+
+        //get next lock
+        cnt_lock = cnt_lock->nxt_lock;
+    }
+
     //connect new lock
     ret->prev_lock = lock_head->tail;
     ret->sentinel = lock_head;
