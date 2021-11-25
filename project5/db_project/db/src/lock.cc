@@ -35,7 +35,7 @@ namespace LM{
 
     lock_head_t* insert_new_lock_head_in_table(int64_t table_id, pagenum_t pagenum){
         //make and initialize new lock head
-        lock_head_t* lock_head = new lock_head_t{table_id,pagenum};
+        lock_head_t* lock_head = new lock_head_t{table_id,pagenum,nullptr,nullptr};
         page_id pid = {table_id, pagenum}; //make page_id to use as search key in hash table
         //insert lock head at pid
         LM::lock_table.insert(std::make_pair(pid,lock_head));

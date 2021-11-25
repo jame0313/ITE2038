@@ -12,8 +12,8 @@
 
 #define PAGE_HEADER_SIZE 128 //128bytes page header
 #define MAX_SLOT_NUMBER 64 // max # of slot
-#define MIN_VALUE_SIZE 50 //min size of value
-#define MAX_VALUE_SIZE 112 // max size of value
+#define MIN_VALUE_SIZE 46 //min size of value
+#define MAX_VALUE_SIZE 108 // max size of value
 #define MAX_KEY_NUMBER DEFAULT_ORDER*2 //max number of keys in internal page
 #define MAX_FREE_SPACE 2500 //max free space in leaf page
 
@@ -60,6 +60,7 @@ namespace FIM{
         int64_t key;
         uint16_t size; //size of value
         uint16_t offset; //in-page offset, point begin of value
+        int trx_id;
     } __attribute__((packed));
 
     //(key, page(pointer)) pair structure
