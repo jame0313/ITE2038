@@ -107,9 +107,11 @@ namespace FIM{
         pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
         if(!leaf_page_number) return -1; //can't find leaf page
 
+        //try to acquire shared lock
         lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, SHARED_LOCK_MODE);
         if(!shared_lock){
-            trx_abort_txn(trx_id);
+            //acquire failed case
+            trx_abort_txn(trx_id); //abort txn
             return -1;
         }
 
@@ -171,9 +173,11 @@ namespace FIM{
         pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
         if(!leaf_page_number) return -1; //can't find leaf page
 
+        //try to acquire exclusive lock
         lock_t* exclusive_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, EXCLUSIVE_LOCK_MODE);
         if(!exclusive_lock){
-            trx_abort_txn(trx_id);
+            //acquire failed case
+            trx_abort_txn(trx_id); //abort txn
             return -1;
         }
 
