@@ -31,10 +31,23 @@ int idx_find_by_key(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_
 //If success, return 0. Otherwise, return non zero value.
 int idx_delete_by_key(int64_t table_id, int64_t key);
 
+//Read a value in the table with a matching key for the transaction having trx_id
+//return 0 (SUCCESS): operation is successfully done, and the transaction can continue the next operation.
+//return non zero (FAILED): operation is failed (e.g., deadlock detected), and the transaction should be
+//aborted. Note that all tasks that need to be handled should be completed in db_find
 int idx_find_by_key_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t *val_size, int trx_id);
 
+//Find the matching key and modify the values
+//If found matching key, update the value of the record to values string with its new_val_size and store its size in old_val_size
+//return 0 (SUCCESS): operation is successfully done
+//return non zero (FAILED): operation is failed
 int idx_update_by_key(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size);
 
+//Find the matching key and modify the values
+//If found matching key, update the value of the record to values string with its new_val_size and store its size in old_val_size
+//return 0 (SUCCESS): operation is successfully done, and the transaction can continue the next operation.
+//return non zero (FAILED): operation is failed (e.g., deadlock detected), and the transaction should be aborted.
+//Note that all tasks that need to be handled should be completed in db_update
 int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id);
 
 //inner struct and function used in FileandIndexManager
