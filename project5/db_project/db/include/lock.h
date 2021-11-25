@@ -27,6 +27,16 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 //If success, return 0. Otherwise, return a non zero value.
 int lock_release(lock_t* lock_obj);
 
+//Remove the all lock_obj in trx list from the lock list.
+//NO lock latch lock in this API
+//YOU SHOULD LOCK BEFORE AND UNLOCK AFTER
+//If success, return 0. Otherwise, return a non zero value.
+int lock_release_all(lock_t* lock_obj);
+
+int lock_acquire_latch();
+
+int lock_release_latch();
+
 //Destroy lock table
 void close_lock_table();
 

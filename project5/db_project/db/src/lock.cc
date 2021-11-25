@@ -331,6 +331,109 @@ int lock_release(lock_t* lock_obj){
     return 0; //success
 }
 
+int lock_release_all(lock_t* lock_obj){
+
+    while(lock_obj){
+        lock_t* nxt_lock_obj = lock_obj->nxt_lock_in_trx;
+
+        //lock header
+        lock_head_t *lock_head = lock_obj->sentinel;
+
+        if(lock_obj->prev_lock){
+            //predecessor lock existed
+            //connect it with nxt lock
+            lock_obj->prev_lock->nxt_lock = lock_obj->nxt_lock;
+        }
+        else{
+            //current lock is first lock in the list
+            //update head lock
+            lock_head->head = lock_obj->nxt_lock;
+        }
+
+        if(lock_obj->nxt_lock){
+            //successor lock existed
+            //connect it with prev lock
+            lock_obj->nxt_lock->prev_lock = lock_obj->prev_lock;
+        }
+        else{
+            //current lock is last lock in the list
+            //update tail lock
+            lock_head->tail = lock_obj->prev_lock;
+        }
+
+        //find in-degree edge from current lock object in wait-for graph
+        //current trx may be conflicted with one X lock or several S locks
+        //find first conflicting X lock or a series of S locks
+
+        //current lock object's info
+        //use as distinguish conflicting lock in page lock list
+        int64_t key = lock_obj->record_id;
+        int trx_id = lock_obj->owner_trx_id;
+        int lock_mode = lock_obj->lock_mode;
+
+        //start at right next to current lock
+        lock_t *cnt_lock = lock_obj->nxt_lock;
+
+        //flags for filter first conflicting lock
+        bool has_prev_shared_lock = false;
+        bool has_prev_exclusive_lock = false;
+
+        //searching phase
+        while(cnt_lock){
+            //find same record lock
+            //which trx id is not same (same trx lock is not conflicted)
+            //and at least one is X lock (only S lock doesn't make conflict)
+            if(cnt_lock->record_id == key && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
+                if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
+                    //current lock is X lock
+                    has_prev_exclusive_lock = true;
+                    if(has_prev_shared_lock){
+                        //there is conflicting S lock after this lock
+                        //no need to check further (we already checked all S lock)
+                        break;
+                    }
+                }
+                else{
+                    //current lock is S lock
+                    has_prev_shared_lock = true;
+                }
+
+                if(cnt_lock->sleeping_flag){
+                    //current lock is waiting for this lock's release
+                    //wake up the successor
+                    cnt_lock->sleeping_flag = false;
+                    pthread_cond_signal(&cnt_lock->cond);
+                }
+
+
+                if(has_prev_exclusive_lock){
+                    //wake up X lock
+                    //no need to check further
+                    break;
+                }
+            }
+
+            //get next lock
+            cnt_lock = cnt_lock->nxt_lock;
+        }
+
+        //delete lock object
+        delete lock_obj;
+
+        lock_obj = nxt_lock_obj;
+    }
+
+    return 0; //success
+}
+
+int lock_acquire_latch(){
+    return pthread_mutex_lock(&LM::lock_manager_latch);
+}
+
+int lock_release_latch(){
+    return pthread_mutex_unlock(&LM::lock_manager_latch);
+}
+
 void close_lock_table(){
     //start critical section
     pthread_mutex_lock(&LM::lock_manager_latch);

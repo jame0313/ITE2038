@@ -96,6 +96,9 @@ namespace TM{
         //first lock in the trx list
         lock_t *cnt_lock = TM::trx_table[trx_id].nxt_lock_in_trx;
 
+        lock_release_all(cnt_lock);
+        return;
+
         //searching phase
         while(cnt_lock){
             //store nxt lock before delete current lock
@@ -185,6 +188,7 @@ int trx_commit_txn(int trx_id){
     int status_code; //check pthread error
 
     //start critical section
+    lock_acquire_latch();
     status_code = pthread_mutex_lock(&TM::transaction_manager_latch);
     if(status_code) return 0; //error
 
@@ -204,6 +208,7 @@ int trx_commit_txn(int trx_id){
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
+    lock_release_latch();
     if(status_code) return 0;
 
     return trx_id;
