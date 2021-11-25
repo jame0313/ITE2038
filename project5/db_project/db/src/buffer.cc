@@ -194,7 +194,7 @@ pagenum_t buffer_alloc_page(int64_t table_id){
     
     //load new page
     BM::ctrl_blk* nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
-    //nxt_blk->is_pinned ++;
+    pthread_mutex_lock(&nxt_blk->page_latch);
 
     return nxt_page_number;
 }
@@ -223,6 +223,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
         if(status_code){
             //already pinned to be written
             //can't write simultaneously
+            pthread_mutex_unlock(&BM::buffer_manager_latch);
             throw "double write access";
         }
     }
@@ -249,6 +250,7 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     if(!pthread_mutex_trylock(&ret_blk->page_latch)){
         //not pinned to be written
         pthread_mutex_unlock(&ret_blk->page_latch);
+        pthread_mutex_unlock(&BM::buffer_manager_latch);
         throw "invalid write access";
     }
 
