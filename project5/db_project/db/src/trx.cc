@@ -218,6 +218,7 @@ int trx_abort_txn(int trx_id){
     int status_code; //check pthread error
 
     //start critical section
+    lock_acquire_latch();
     status_code = pthread_mutex_lock(&TM::transaction_manager_latch);
     if(status_code) return 0; //error
 
@@ -237,6 +238,7 @@ int trx_abort_txn(int trx_id){
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
+    lock_release_latch();
     if(status_code) return 0;
     
     return trx_id;
@@ -311,6 +313,7 @@ lock_t* trx_get_last_lock_in_trx_list(int trx_id){
 
 void close_trx_manager(){
     //start critical section
+    lock_acquire_latch();
     pthread_mutex_lock(&TM::transaction_manager_latch);
 
     for(auto& it : TM::trx_table){
@@ -325,5 +328,6 @@ void close_trx_manager(){
 
     //end critical section
     pthread_mutex_unlock(&TM::transaction_manager_latch);
+    lock_release_latch();
     return;
 }
