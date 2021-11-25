@@ -128,7 +128,7 @@ namespace FIM{
                 }
 
                 //TODO release page lock
-                buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                buffer_write_page(table_id,leaf_page_number,nullptr);
                 return 0;
             }
         }

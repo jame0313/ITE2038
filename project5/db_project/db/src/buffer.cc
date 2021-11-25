@@ -248,9 +248,11 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     }*/
 
 
-    //copy page content to dest
-    memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
-    ret_blk->is_dirty = true; //set dirty bit on
+    if(src){
+        //copy page content to dest
+        memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
+        ret_blk->is_dirty = true; //set dirty bit on
+    }
     //ret_blk->is_pinned --; //set unpin
     pthread_mutex_unlock(&ret_blk->page_latch);
 
