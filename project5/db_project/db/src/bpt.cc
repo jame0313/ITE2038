@@ -134,6 +134,7 @@ namespace FIM{
                 return 0;
             }
         }
+        buffer_write_page(table_id,leaf_page_number,nullptr);
         return -1; //can't find record
     }
 
@@ -164,6 +165,7 @@ namespace FIM{
                 return 0;
             }
         }
+        buffer_write_page(table_id,leaf_page_number,nullptr);
         return -1; //can't find record
     }
 
@@ -207,6 +209,7 @@ namespace FIM{
                 return 0;
             }
         }
+        buffer_write_page(table_id,leaf_page_number,nullptr);
         return -1; //can't find record
     }
 
