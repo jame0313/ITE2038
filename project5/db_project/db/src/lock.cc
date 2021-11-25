@@ -177,15 +177,19 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
         return nullptr; //error
     }
 
-    
+    //find lock already acquired by given txn
+    //found lock should be X lock or this lock should be S lock
+
     //start at head lock
     lock_t *cnt_lock = lock_head->head;
 
     //searching phase
     while(cnt_lock){
         //find same record lock
-        //which trx id same and can use as lock
-        if(cnt_lock->record_id == key && cnt_lock->owner_trx_id == trx_id && (cnt_lock->lock_mode | (!lock_mode)) == EXCLUSIVE_LOCK_MODE){
+        //which trx id same and can share with this lock
+        if(cnt_lock->record_id == key && cnt_lock->owner_trx_id == trx_id && ((cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE) || (lock_mode == SHARED_LOCK_MODE))){
+            //can share with prev lock
+            //just return prev lock
             delete ret;
             return cnt_lock;
         }
@@ -349,8 +353,9 @@ int lock_release(lock_t* lock_obj){
 }
 
 int lock_release_all(lock_t* lock_obj){
-
+    //release all lock in trx list
     while(lock_obj){
+        //get next lock in trx list
         lock_t* nxt_lock_obj = lock_obj->nxt_lock_in_trx;
 
         //lock header
@@ -437,7 +442,7 @@ int lock_release_all(lock_t* lock_obj){
         //delete lock object
         delete lock_obj;
 
-        lock_obj = nxt_lock_obj;
+        lock_obj = nxt_lock_obj; //next step
     }
 
     return 0; //success
