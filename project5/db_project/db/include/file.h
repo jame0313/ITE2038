@@ -30,6 +30,8 @@ void file_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);
 // Close the database file
 void file_close_table_file();
 
+void file_close_table_file(int64_t table_id);
+
 //inner struct and function used in DiskSpaceManager
 namespace DSM{
     //table(file) info struct

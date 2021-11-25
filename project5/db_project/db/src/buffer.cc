@@ -259,6 +259,8 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
 
 // Flush all and destroy
 void buffer_close_table_file(){
+    pthread_mutex_lock(&BM::buffer_manager_latch);
+
     for(size_t i=0; i<BM::BUFFER_SIZE; i++){
         //scan all block in buffer list
         if(BM::ctrl_blk_list[i].is_dirty){
@@ -273,4 +275,20 @@ void buffer_close_table_file(){
 
     //clear the hash table
     BM::hash_table.clear();
+
+    pthread_mutex_unlock(&BM::buffer_manager_latch);
+}
+
+void buffer_close_table_file(int64_t table_id){
+    pthread_mutex_lock(&BM::buffer_manager_latch);
+
+    for(size_t i=0; i<BM::BUFFER_SIZE; i++){
+        //scan all block in buffer list
+        if(BM::ctrl_blk_list[i].is_dirty && BM::ctrl_blk_list[i].table_id == table_id){
+            //flush dirty page only
+            BM::flush_frame_to_file(i);
+        }
+    }
+
+    pthread_mutex_unlock(&BM::buffer_manager_latch);
 }

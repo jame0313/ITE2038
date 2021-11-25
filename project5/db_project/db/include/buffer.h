@@ -32,6 +32,8 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);
 // Flush all and destroy
 void buffer_close_table_file();
 
+void buffer_close_table_file(int64_t table_id);
+
 //inner struct and function used in BufferManager
 namespace BM{
 

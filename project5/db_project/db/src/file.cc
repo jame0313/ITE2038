@@ -283,3 +283,16 @@ void file_close_table_file(){
     //clear list
     DSM::DB_FILE_LIST_SIZE = 0;
 }
+
+void file_close_table_file(int64_t table_id){
+    for(int i=0;i<DSM::DB_FILE_LIST_SIZE;i++){
+        DSM::table_info &it = DSM::DB_FILE_LIST[i];
+        if(it.table_id != table_id) continue;
+        if(close(it.fd)==-1){
+            throw "close db file failed";
+        }
+        free((void*)it.path); //free all path string
+        it = {0,0,0}; //clear element
+
+    }
+}
