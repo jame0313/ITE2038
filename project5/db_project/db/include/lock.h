@@ -33,8 +33,12 @@ int lock_release(lock_t* lock_obj);
 //If success, return 0. Otherwise, return a non zero value.
 int lock_release_all(lock_t* lock_obj);
 
+//acquire global lock manager latch
+//If success, return 0. Otherwise, return a non zero value.
 int lock_acquire_latch();
 
+//release global lock manager latch
+//If success, return 0. Otherwise, return a non zero value.
 int lock_release_latch();
 
 //Destroy lock table
