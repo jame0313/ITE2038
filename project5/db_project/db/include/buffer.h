@@ -45,8 +45,7 @@ namespace BM{
         blknum_t lru_prv_blk_number; //prev block number in LRU list or -1 if not existed
         blknum_t lru_nxt_blk_number; //next block number in LRU list or -1 if not existed
         bool is_dirty; //set on if it need flush (identify content's changes)
-        pthread_mutex_t page_latch = PTHREAD_MUTEX_INITIALIZER;
-        //uint32_t is_pinned; //identify this buffer is-use
+        pthread_mutex_t page_latch = PTHREAD_MUTEX_INITIALIZER; //identify this buffer is-use
     };
 
     //inner structure for hashing pair object

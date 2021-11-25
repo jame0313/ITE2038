@@ -53,9 +53,9 @@ namespace BM{
 
     blknum_t find_victim_blk_from_buffer(){
         blknum_t cnt_blk = ctrl_blk_list_front; //get LRU block
-
-        bool is_acquired = false;
+        bool is_acquired = false; //check whether find unlocked page
         while(cnt_blk != -1){
+            //try to lock current page
             int status_code = pthread_mutex_trylock(&BM::ctrl_blk_list[cnt_blk].page_latch);
             if(!status_code){
                 //acquired current blk
@@ -129,6 +129,7 @@ namespace BM{
 
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
+            //unlock to be evicted page
             pthread_mutex_unlock(&ret_blk->page_latch);
             
             if(ret_blk->is_dirty){
@@ -207,57 +208,61 @@ void buffer_free_page(int64_t table_id, pagenum_t pagenum){
 
 // read a page from buffer
 void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool readonly){
-    int status_code;
+    int status_code; //check for pthread error
 
+    //start cirtical section
     status_code = pthread_mutex_lock(&BM::buffer_manager_latch);
-    if(status_code) return;
+    if(status_code) throw "pthread error occurred";
 
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
-    /*
+    
     if(!readonly){
-        //it can be written soon
-        if(ret_blk->is_pinned){
+        //lock when there will be modification
+        status_code = pthread_mutex_trylock(&ret_blk->page_latch);
+        if(status_code){
             //already pinned to be written
             //can't write simultaneously
             throw "double write access";
         }
-        ret_blk->is_pinned ++; //set pin
-    }*/
-    if(!readonly) pthread_mutex_lock(&ret_blk->page_latch);
+    }
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
 
+    //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
-    if(status_code) return;
+    if(status_code) throw "pthread error occurred";
     return;
 }
 
 // write a page to buffer
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
-    int status_code;
+    int status_code; //check for pthread error
 
+    //start cirtical section
     status_code = pthread_mutex_lock(&BM::buffer_manager_latch);
-    if(status_code) return;
+    if(status_code) throw "pthread error occurred";
 
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
-    /*if(!ret_blk->is_pinned){
+    
+    if(!pthread_mutex_trylock(&ret_blk->page_latch)){
         //not pinned to be written
+        pthread_mutex_unlock(&ret_blk->page_latch);
         throw "invalid write access";
-    }*/
-
+    }
 
     if(src){
         //copy page content to dest
         memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
         ret_blk->is_dirty = true; //set dirty bit on
     }
-    //ret_blk->is_pinned --; //set unpin
-    pthread_mutex_unlock(&ret_blk->page_latch);
 
+    pthread_mutex_unlock(&ret_blk->page_latch); //unlock current page
+
+    //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
-    if(status_code) return;
+    if(status_code) throw "pthread error occurred";
     return;
 }
 
@@ -290,6 +295,7 @@ void buffer_close_table_file(int64_t table_id){
         //scan all block in buffer list
         if(BM::ctrl_blk_list[i].is_dirty && BM::ctrl_blk_list[i].table_id == table_id){
             //flush dirty page only
+            BM::ctrl_blk_list[i].is_dirty = 0;
             BM::flush_frame_to_file(i);
         }
     }
