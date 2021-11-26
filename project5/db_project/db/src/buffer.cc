@@ -217,14 +217,14 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
-    if(!readonly){
-        //lock when there will be modification
-        while(pthread_mutex_trylock(&ret_blk->page_latch)){
-            pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
-        }
+    while(pthread_mutex_trylock(&ret_blk->page_latch)){
+        pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
     }
+
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
+
+    if(readonly) pthread_mutex_unlock(&ret_blk->page_latch);
 
     //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);

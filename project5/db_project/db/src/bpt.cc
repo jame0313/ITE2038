@@ -107,16 +107,8 @@ namespace FIM{
         pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
         if(!leaf_page_number) return -1; //can't find leaf page
 
-        //try to acquire shared lock
-        lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, SHARED_LOCK_MODE);
-        if(!shared_lock){
-            //acquire failed case
-            trx_abort_txn(trx_id); //abort txn
-            return -1;
-        }
-
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -124,17 +116,22 @@ namespace FIM{
             if(leaf_page._leaf_page.slot[i].key == key){
                 //find record
                 if(ret_val){
+                    //try to acquire shared lock
+                    lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, SHARED_LOCK_MODE);
+                    if(!shared_lock){
+                        //acquire failed case
+                        trx_abort_txn(trx_id); //abort txn
+                        return -1;
+                    }
+                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
                     //push record value when ret_val is not NULL
                     *val_size = leaf_page._leaf_page.slot[i].size;
                     memcpy(ret_val,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*val_size);
+                    buffer_write_page(table_id,leaf_page_number,nullptr);
                 }
-
-                //TODO release page lock
-                buffer_write_page(table_id,leaf_page_number,nullptr);
                 return 0;
             }
         }
-        buffer_write_page(table_id,leaf_page_number,nullptr);
         return -1; //can't find record
     }
 
@@ -175,16 +172,8 @@ namespace FIM{
         pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
         if(!leaf_page_number) return -1; //can't find leaf page
 
-        //try to acquire exclusive lock
-        lock_t* exclusive_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, EXCLUSIVE_LOCK_MODE);
-        if(!exclusive_lock){
-            //acquire failed case
-            trx_abort_txn(trx_id); //abort txn
-            return -1;
-        }
-
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -192,6 +181,14 @@ namespace FIM{
             if(leaf_page._leaf_page.slot[i].key == key){
                 //find record
                 if(values){
+                    //try to acquire exclusive lock
+                    lock_t* exclusive_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, EXCLUSIVE_LOCK_MODE);
+                    if(!exclusive_lock){
+                        //acquire failed case
+                        trx_abort_txn(trx_id); //abort txn
+                        return -1;
+                    }
+                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
                     //store old_val_size and old_values and
                     //update record value when values is not NULL
                     *old_val_size = leaf_page._leaf_page.slot[i].size;
@@ -203,13 +200,11 @@ namespace FIM{
                     //add log and delete old_value
                     trx_add_log(table_id,key,values,new_val_size,old_values,*old_val_size,trx_id);
                     delete[] old_values;
+                    buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                 }
-                //TODO write changes to page
-                buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                 return 0;
             }
         }
-        buffer_write_page(table_id,leaf_page_number,nullptr);
         return -1; //can't find record
     }
 
