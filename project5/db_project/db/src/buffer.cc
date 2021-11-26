@@ -219,12 +219,8 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
     
     if(!readonly){
         //lock when there will be modification
-        status_code = pthread_mutex_lock(&ret_blk->page_latch);
-        if(status_code){
-            //already pinned to be written
-            //can't write simultaneously
-            pthread_mutex_unlock(&BM::buffer_manager_latch);
-            throw "double write access";
+        while(pthread_mutex_trylock(&ret_blk->page_latch)){
+            pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
         }
     }
     //copy page content to dest
@@ -261,6 +257,7 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     }
 
     pthread_mutex_unlock(&ret_blk->page_latch); //unlock current page
+    pthread_cond_broadcast(&ret_blk->cond);
 
     //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
