@@ -174,6 +174,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     if(lock_head->table_id != table_id || lock_head->page_id != page_id){
         //lock table mismatched case
         delete ret;
+        pthread_mutex_unlock(&LM::lock_manager_latch);
         return nullptr; //error
     }
 
@@ -191,6 +192,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
             //can share with prev lock
             //just return prev lock
             delete ret;
+            pthread_mutex_unlock(&LM::lock_manager_latch);
             return cnt_lock;
         }
 
@@ -208,6 +210,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     if(flag == -1){
         //deadlock occurred
         delete ret;
+        pthread_mutex_unlock(&LM::lock_manager_latch);
         return nullptr; //error
     }
 
