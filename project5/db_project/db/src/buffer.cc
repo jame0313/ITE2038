@@ -56,7 +56,7 @@ namespace BM{
         bool is_acquired = false; //check whether find unlocked page
         while(cnt_blk != -1){
             //try to lock current page
-            int status_code = pthread_mutex_trylock(&BM::ctrl_blk_list[cnt_blk].page_latch);
+            int status_code = pthread_rwlock_trywrlock(&BM::ctrl_blk_list[cnt_blk].page_latch);
             if(!status_code){
                 //acquired current blk
                 is_acquired = true;
@@ -124,13 +124,14 @@ namespace BM{
             if(cnt_blk == -1){
                 //can't get victim block
                 //can't evict page so can't get such block
+                pthread_mutex_unlock(&BM::buffer_manager_latch);
                 throw "can't evict page from buffer";
             }
 
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
             //unlock to be evicted page
-            pthread_mutex_unlock(&ret_blk->page_latch);
+            pthread_rwlock_unlock(&ret_blk->page_latch);
             
             if(ret_blk->is_dirty){
                 //flush changes to disk if needed
@@ -175,6 +176,8 @@ int init_buffer(int num_buf){
         BM::ctrl_blk_list[i].frame_ptr = &BM::frame_list[i];
         BM::ctrl_blk_list[i].lru_nxt_blk_number = i+1 < num_buf ? i+1 : -1;
         BM::ctrl_blk_list[i].lru_prv_blk_number = i-1;
+        BM::ctrl_blk_list[i].is_dirty = false;
+        BM::ctrl_blk_list[i].page_latch = PTHREAD_RWLOCK_INITIALIZER;
     }
 
     //set front and back in the list
@@ -194,7 +197,7 @@ pagenum_t buffer_alloc_page(int64_t table_id){
     
     //load new page
     BM::ctrl_blk* nxt_blk = BM::get_ctrl_blk_from_buffer(table_id, nxt_page_number);
-    pthread_mutex_lock(&nxt_blk->page_latch);
+    pthread_rwlock_wrlock(&nxt_blk->page_latch);
 
     return nxt_page_number;
 }
@@ -217,14 +220,21 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
-    while(pthread_mutex_trylock(&ret_blk->page_latch)){
-        pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
+    if(readonly){
+        while(pthread_rwlock_tryrdlock(&ret_blk->page_latch)){
+            pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
+        }
+    }
+    else{
+        while(pthread_rwlock_trywrlock(&ret_blk->page_latch)){
+            pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
+        }
     }
 
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
 
-    if(readonly) pthread_mutex_unlock(&ret_blk->page_latch);
+    if(readonly) pthread_rwlock_unlock(&ret_blk->page_latch);
 
     //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
@@ -243,9 +253,9 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
-    if(!pthread_mutex_trylock(&ret_blk->page_latch)){
+    if(!pthread_rwlock_trywrlock(&ret_blk->page_latch)){
         //not pinned to be written
-        pthread_mutex_unlock(&ret_blk->page_latch);
+        pthread_rwlock_unlock(&ret_blk->page_latch);
         pthread_mutex_unlock(&BM::buffer_manager_latch);
         throw "invalid write access";
     }
@@ -256,7 +266,7 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
         ret_blk->is_dirty = true; //set dirty bit on
     }
 
-    pthread_mutex_unlock(&ret_blk->page_latch); //unlock current page
+    pthread_rwlock_unlock(&ret_blk->page_latch); //unlock current page
     pthread_cond_broadcast(&ret_blk->cond);
 
     //end cirtical section
