@@ -219,7 +219,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
     
     if(!readonly){
         //lock when there will be modification
-        status_code = pthread_mutex_trylock(&ret_blk->page_latch);
+        status_code = pthread_mutex_lock(&ret_blk->page_latch);
         if(status_code){
             //already pinned to be written
             //can't write simultaneously
