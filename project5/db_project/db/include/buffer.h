@@ -24,7 +24,7 @@ pagenum_t buffer_alloc_page(int64_t table_id);
 void buffer_free_page(int64_t table_id, pagenum_t pagenum);
 
 // read a page from buffer
-void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool readonly = false);
+void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mode = 0);
 
 // Write a page to buffer
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);
