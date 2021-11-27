@@ -142,7 +142,7 @@ namespace FIM{
         if(!leaf_page_number) return -1; //can't find leaf page
 
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -150,6 +150,7 @@ namespace FIM{
             if(leaf_page._leaf_page.slot[i].key == key){
                 //find record
                 if(values){
+                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
                     //store old_val_size and
                     //update record value when values is not NULL
                     *old_val_size = leaf_page._leaf_page.slot[i].size;
@@ -162,7 +163,6 @@ namespace FIM{
                 return 0;
             }
         }
-        buffer_write_page(table_id,leaf_page_number,nullptr);
         return -1; //can't find record
     }
 
