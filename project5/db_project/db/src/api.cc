@@ -58,7 +58,7 @@ int trx_commit(int trx_id){
     return trx_commit_txn(trx_id);
 }
 
-int close_table(int64_t table_id){
+/*int close_table(int64_t table_id){
     try{
 
         buffer_close_table_file(table_id);
@@ -68,4 +68,4 @@ int close_table(int64_t table_id){
         perror(e);
         return -1;
     }
-}
+}*/

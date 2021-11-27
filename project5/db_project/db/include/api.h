@@ -53,4 +53,4 @@ int trx_begin(void);
 //Return the completed transaction id if success, otherwise return 0.
 int trx_commit(int trx_id);
 
-int close_table(int64_t table_id);
+//int close_table(int64_t table_id);
