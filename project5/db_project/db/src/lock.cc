@@ -59,7 +59,7 @@ namespace LM{
                 //deadlock detected
                 return -1;
             }
-            if(!lock_obj->sleeping_flag){
+            if(lock_obj->waiting_num == 0){
                 //current transaction doesn't wait for anything
                 //no out-degree edge in current trx
                 //no conflict here
@@ -82,7 +82,7 @@ namespace LM{
         lock_t* cnt_lock = lock_obj->prev_lock;
 
         //flags for filter first conflicting lock
-        bool is_conflicted = false;
+        int waiting_num = 0;
         bool has_prev_shared_lock = false;
         bool has_prev_exclusive_lock = false;
 
@@ -92,7 +92,7 @@ namespace LM{
             //which trx id is not same (same trx lock is not conflicted)
             //and at least one is X lock (only S lock doesn't make conflict)
             if(cnt_lock->record_id == key && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
-                is_conflicted = true; //set conflict flag on
+                waiting_num ++; //set conflict flag on
 
                 if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
                     //current lock is X lock
@@ -132,8 +132,8 @@ namespace LM{
             cnt_lock = cnt_lock->prev_lock;
         }
 
-        //return 1 if conflicted or 0 if not
-        return is_conflicted?1:0;
+        //return the number of conflicting operation
+        return waiting_num;
     }
 
 }
@@ -230,14 +230,14 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
     //make connection in respect to transaction table lock list
     trx_append_lock_in_trx_list(trx_id, ret);
 
-    if(flag == 1){
+    if(flag > 0){
         //there is conflicting operation
 
         //set sleep flag on
-        ret->sleeping_flag = true;
+        ret->waiting_num = flag;
 
         //wait for conflicting lock released
-        while(ret->sleeping_flag){
+        while(ret->waiting_num > 0){
             pthread_cond_wait(&ret->cond, &LM::lock_manager_latch);
         }
     }
@@ -324,11 +324,11 @@ int lock_release(lock_t* lock_obj){
                 has_prev_shared_lock = true;
             }
 
-            if(cnt_lock->sleeping_flag){
+            if(cnt_lock->waiting_num > 0){
                 //current lock is waiting for this lock's release
                 //wake up the successor
-                cnt_lock->sleeping_flag = false;
-                pthread_cond_signal(&cnt_lock->cond);
+                cnt_lock->waiting_num--;
+                if(cnt_lock->waiting_num == 0) pthread_cond_signal(&cnt_lock->cond);
             }
 
             
@@ -423,11 +423,11 @@ int lock_release_all(lock_t* lock_obj){
                     has_prev_shared_lock = true;
                 }
 
-                if(cnt_lock->sleeping_flag){
+                if(cnt_lock->waiting_num > 0){
                     //current lock is waiting for this lock's release
                     //wake up the successor
-                    cnt_lock->sleeping_flag = false;
-                    pthread_cond_signal(&cnt_lock->cond);
+                    cnt_lock->waiting_num--;
+                    if(cnt_lock->waiting_num == 0) pthread_cond_signal(&cnt_lock->cond);
                 }
 
 
