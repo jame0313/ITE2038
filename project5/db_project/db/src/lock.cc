@@ -100,6 +100,7 @@ namespace LM{
                     if(has_prev_shared_lock){
                         //there is conflicting S lock after this lock
                         //no need to check further (we already checked all S lock)
+                        waiting_num--;
                         break;
                     }
                 }
