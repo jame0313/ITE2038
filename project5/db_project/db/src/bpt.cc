@@ -123,7 +123,7 @@ namespace FIM{
                         trx_abort_txn(trx_id); //abort txn
                         return -1;
                     }
-                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, 2);
                     //push record value when ret_val is not NULL
                     *val_size = leaf_page._leaf_page.slot[i].size;
                     memcpy(ret_val,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*val_size);
