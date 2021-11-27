@@ -130,8 +130,7 @@ namespace BM{
 
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
-            //unlock to be evicted page
-            pthread_rwlock_unlock(&ret_blk->page_latch);
+            
             
             if(ret_blk->is_dirty){
                 //flush changes to disk if needed
@@ -149,6 +148,9 @@ namespace BM{
             
             //read page from disk by call DSM api
             file_read_page(table_id, pagenum, ret_blk->frame_ptr);
+
+            //unlock to be evicted page
+            pthread_rwlock_unlock(&ret_blk->page_latch);
         }
         //update LRU list
         BM::move_blk_to_end(cnt_blk);
@@ -210,7 +212,7 @@ void buffer_free_page(int64_t table_id, pagenum_t pagenum){
 }
 
 // read a page from buffer
-void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool readonly){
+void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mode){
     int status_code; //check for pthread error
 
     //start cirtical section
@@ -220,7 +222,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
-    if(readonly){
+    if(mode){
         while(pthread_rwlock_tryrdlock(&ret_blk->page_latch)){
             pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
         }
@@ -234,7 +236,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, bool re
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
 
-    if(readonly) pthread_rwlock_unlock(&ret_blk->page_latch);
+    if(mode==1) pthread_rwlock_unlock(&ret_blk->page_latch);
 
     //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
