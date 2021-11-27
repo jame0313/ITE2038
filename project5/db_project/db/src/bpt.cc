@@ -278,7 +278,7 @@ namespace FIM{
         for(uint32_t i = 0; i < num_keys; i++) offset = std::min(offset, leaf_page._leaf_page.slot[i].offset);
         offset -= val_size;
 
-        FIM::page_slot_t new_slot = {key, val_size, offset}; //new slot info to insert
+        FIM::page_slot_t new_slot = {key, val_size, offset, 0}; //new slot info to insert
 
         //check new key needs to inserted in rightmost slot
         bool inserted_in_page = false;
@@ -343,6 +343,7 @@ namespace FIM{
                 //store new key and value
                 tmp_slot[j].key = key;
                 tmp_slot[j].size = val_size;
+                tmp_slot[j].trx_id = 0;
                 
                 value_list[j] = new char[val_size+1];
                 memcpy(value_list[j],value,val_size);
