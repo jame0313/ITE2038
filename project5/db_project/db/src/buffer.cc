@@ -209,7 +209,7 @@ void buffer_free_page(int64_t table_id, pagenum_t pagenum){
 }
 
 // read a page from buffer
-void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mode){
+void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int lock_policy){
     int status_code; //check for pthread error
 
     //start cirtical section
@@ -219,7 +219,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mod
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
-    if(mode != 0){
+    if(lock_policy != BUFFER_WRITE_LOCK_MODE){
         //shared lock case
         while(pthread_rwlock_tryrdlock(&ret_blk->page_latch)){
             pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
@@ -235,7 +235,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mod
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
 
-    if(mode == 1){
+    if(lock_policy == BUFFER_NO_LOCK_MODE){
         //don't lock anymore
         pthread_rwlock_unlock(&ret_blk->page_latch);
     }

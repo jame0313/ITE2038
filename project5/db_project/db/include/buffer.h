@@ -8,6 +8,10 @@
 
 #define DEFAULT_BUFFER_SIZE 1024
 
+#define BUFFER_WRITE_LOCK_MODE 0
+#define BUFFER_NO_LOCK_MODE 1
+#define BUFFER_READ_LOCK_MODE 2
+
 typedef page_t frame_t;
 typedef int64_t framenum_t;
 typedef int64_t blknum_t;
@@ -24,9 +28,9 @@ pagenum_t buffer_alloc_page(int64_t table_id);
 void buffer_free_page(int64_t table_id, pagenum_t pagenum);
 
 // read a page from buffer
-// addiditonal flag(mode) is for locking policy
+// addiditonal flag(lock policy) is for locking policy
 // mode is 0(exclusive lock), 1(chk exclusive lock only, no locking), or 2(shared lock) 
-void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mode = 0);
+void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int lock_policy = BUFFER_WRITE_LOCK_MODE);
 
 // Write a page to buffer and release page latch
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);

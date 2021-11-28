@@ -33,14 +33,14 @@ namespace FIM{
         _fim_page_t header_page, cnt_page;
 
         //get header page to get root page number
-        buffer_read_page(table_id,0,&header_page._raw_page, true);
+        buffer_read_page(table_id,0,&header_page._raw_page, BUFFER_NO_LOCK_MODE);
         pagenum_t root = header_page._header_page.root_page_number; //root page number
 
         if(!root) return 0; //no tree case
 
         //current page(return value)
         pagenum_t cnt_page_number = root;
-        buffer_read_page(table_id,root,&cnt_page._raw_page, true);
+        buffer_read_page(table_id,root,&cnt_page._raw_page, BUFFER_NO_LOCK_MODE);
         
         //find while current page is leaf page
         //find child page x where x th page's key <= key < x+1 th page's key
@@ -71,7 +71,7 @@ namespace FIM{
                 throw "inf loop in find leaf page";
             }
             //get next page
-            buffer_read_page(table_id,cnt_page_number,&cnt_page._raw_page, true);
+            buffer_read_page(table_id,cnt_page_number,&cnt_page._raw_page, BUFFER_NO_LOCK_MODE);
         }
         return cnt_page_number;
     }
@@ -83,7 +83,7 @@ namespace FIM{
         if(!leaf_page_number) return -1; //can't find leaf page
 
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_NO_LOCK_MODE);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -108,7 +108,7 @@ namespace FIM{
         if(!leaf_page_number) return -1; //can't find leaf page
 
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_NO_LOCK_MODE);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -124,7 +124,7 @@ namespace FIM{
                         return -1;
                     }
                     //acquire page latch (shared lock)
-                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, 2);
+                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_READ_LOCK_MODE);
 
                     //push record value when ret_val is not NULL
                     *val_size = leaf_page._leaf_page.slot[i].size;
@@ -146,7 +146,7 @@ namespace FIM{
         if(!leaf_page_number) return -1; //can't find leaf page
 
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_NO_LOCK_MODE);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -180,7 +180,7 @@ namespace FIM{
         if(!leaf_page_number) return -1; //can't find leaf page
 
         _fim_page_t leaf_page;
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_NO_LOCK_MODE);
 
         uint32_t num_keys = leaf_page._leaf_page.page_header.number_of_keys;
 
@@ -226,7 +226,7 @@ namespace FIM{
         if(!FIM::find_record(table_id,key)) return -1; //there is key in tree already
 
         _fim_page_t header_page, leaf_page;
-        buffer_read_page(table_id,0,&header_page._raw_page, true); //get header page to get root page
+        buffer_read_page(table_id,0,&header_page._raw_page, BUFFER_NO_LOCK_MODE); //get header page to get root page
         pagenum_t root = header_page._header_page.root_page_number;
 
         if(!root){
@@ -238,7 +238,7 @@ namespace FIM{
 
         //find corresponding leaf page to insert record
         pagenum_t leaf_page_number = FIM::find_leaf_page(table_id,key);
-        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, true);
+        buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_NO_LOCK_MODE);
 
         //check insert operation's result need splitting
         uint64_t left_space = leaf_page._leaf_page.amount_of_free_space;
@@ -449,7 +449,7 @@ namespace FIM{
 
     int insert_into_parent_page(pagenum_t left_page_number, int64_t table_id, int64_t key, pagenum_t right_page_number){
         _fim_page_t left_page, parent_page;
-        buffer_read_page(table_id,left_page_number,&left_page._raw_page, true); //get left page to get parent page number
+        buffer_read_page(table_id,left_page_number,&left_page._raw_page, BUFFER_NO_LOCK_MODE); //get left page to get parent page number
 
         pagenum_t parent_page_number = left_page._internal_page.page_header.parent_page_number;
         
@@ -460,7 +460,7 @@ namespace FIM{
             return FIM::change_root_page(table_id, root);
         }
 
-        buffer_read_page(table_id,parent_page_number,&parent_page._raw_page, true); //get parent page
+        buffer_read_page(table_id,parent_page_number,&parent_page._raw_page, BUFFER_NO_LOCK_MODE); //get parent page
 
         uint32_t num_keys = parent_page._internal_page.page_header.number_of_keys;
 
@@ -657,7 +657,7 @@ namespace FIM{
         
         FIM::remove_entry_from_page(page_number, table_id, key); //remove key and data in page
 
-        buffer_read_page(table_id,page_number,&page._raw_page, true); //get result page
+        buffer_read_page(table_id,page_number,&page._raw_page, BUFFER_NO_LOCK_MODE); //get result page
 
         pagenum_t parent_page_number = page._internal_page.page_header.parent_page_number;
         
@@ -697,7 +697,7 @@ namespace FIM{
             //or redistribute two pages' contents
             //to meet invariant in two pages
 
-            buffer_read_page(table_id,parent_page_number,&parent_page._raw_page, true); //get parent page to find neightbor page
+            buffer_read_page(table_id,parent_page_number,&parent_page._raw_page, BUFFER_NO_LOCK_MODE); //get parent page to find neightbor page
 
             //try to find left neighbor and key between two pages
             pagenum_t neighbor_page_number = 0;
@@ -737,7 +737,7 @@ namespace FIM{
                 return -1;
             }
 
-            buffer_read_page(table_id,neighbor_page_number,&neighbor_page._raw_page, true); //get neighbor page
+            buffer_read_page(table_id,neighbor_page_number,&neighbor_page._raw_page, BUFFER_NO_LOCK_MODE); //get neighbor page
             bool can_merge; //check two pages can merge into one page
 
             if(is_leaf){
@@ -842,7 +842,7 @@ namespace FIM{
 
     pagenum_t adjust_root_page(pagenum_t root_page_number, int64_t table_id){
         _fim_page_t root_page, new_root_page;
-        buffer_read_page(table_id, root_page_number, &root_page._raw_page, true); //get current root
+        buffer_read_page(table_id, root_page_number, &root_page._raw_page, BUFFER_NO_LOCK_MODE); //get current root
         
         uint32_t num_keys = root_page._leaf_page.page_header.number_of_keys;
         
@@ -884,7 +884,7 @@ namespace FIM{
         if(is_leftmost) std::swap(page_number, neighbor_page_number); //swap again to restore status
 
         //get two pages
-        buffer_read_page(table_id, right_page_number, &right_page._raw_page, true);
+        buffer_read_page(table_id, right_page_number, &right_page._raw_page, BUFFER_NO_LOCK_MODE);
         buffer_read_page(table_id, left_page_number, &left_page._raw_page);
 
         uint32_t left_num_keys = left_page._leaf_page.page_header.number_of_keys;
