@@ -78,53 +78,6 @@ namespace TM{
         return;
     }
 
-    void remove_trx_log(int trx_id){
-        //get trx log given txn id
-        auto& v = TM::trx_table[trx_id].trx_log;
-
-        for(auto log : v){
-            //delete char string and log object
-            delete[] log->old_value;
-            delete[] log->new_value;
-            delete log;
-        }
-
-        v.clear(); //clear list
-    }
-
-    void release_all_locks_in_trx(int trx_id){
-        //first lock in the trx list
-        lock_t *cnt_lock = TM::trx_table[trx_id].nxt_lock_in_trx;
-
-        lock_release_all(cnt_lock);
-        return;
-
-        //searching phase
-        while(cnt_lock){
-            //store nxt lock before delete current lock
-            lock_t* nxt_lock = cnt_lock->nxt_lock_in_trx;
-            
-            //release lock
-            lock_release(cnt_lock);
-
-            cnt_lock = nxt_lock; //next step
-        }
-        return;
-    }
-
-    void rollback_trx_log(int trx_id){
-        //get trx log given txn id
-        auto& v = TM::trx_table[trx_id].trx_log;
-
-        //rollback in reverse order
-        for(auto it = v.rbegin(); it != v.rend() ; ++it){
-            //TODO : ROLLBACK
-            TM::trx_log_t *e = *it; //get trx_log object pointer
-            //rollback effect
-            idx_update_by_key(e->table_id, e->key, e->old_value, e->old_size, &(e->new_size));
-        }
-    }
-
     TM::trx_log_t* make_trx_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size){
         //make new object
         TM::trx_log_t* ret = new trx_log_t;
@@ -150,12 +103,47 @@ namespace TM{
         TM::trx_table[trx_id].trx_log.push_back(log_obj);
         return;
     }
-    
+
+    void remove_trx_log(int trx_id){
+        //get trx log given txn id
+        auto& v = TM::trx_table[trx_id].trx_log;
+
+        for(auto log : v){
+            //delete char string and log object
+            delete[] log->old_value;
+            delete[] log->new_value;
+            delete log;
+        }
+
+        v.clear(); //clear list
+    }
+
+    void release_all_locks_in_trx(int trx_id){
+        //first lock in the trx list
+        lock_t *cnt_lock = TM::trx_table[trx_id].nxt_lock_in_trx;
+
+        //release all locks in trx list
+        lock_release_all(cnt_lock);
+
+        return;
+    }
+
+    void rollback_trx_log(int trx_id){
+        //get trx log given txn id
+        auto& v = TM::trx_table[trx_id].trx_log;
+
+        //rollback in reverse order
+        for(auto it = v.rbegin(); it != v.rend() ; ++it){
+            TM::trx_log_t *e = *it; //get trx_log object pointer
+            //rollback effect
+            idx_update_by_key(e->table_id, e->key, e->old_value, e->old_size, &(e->new_size));
+        }
+    }
 }
 
 int init_trx_manager(void){
 
-    TM::GLOBAL_TXN_ID_LENGTH = 0;
+    TM::GLOBAL_TXN_ID_LENGTH = 0; //reset trx id pool
 
     TM::transaction_manager_latch = PTHREAD_MUTEX_INITIALIZER;
 
@@ -188,8 +176,8 @@ int trx_commit_txn(int trx_id){
     int status_code; //check pthread error
 
     //start critical section
-    lock_acquire_latch();
-    status_code = pthread_mutex_lock(&TM::transaction_manager_latch);
+    status_code = lock_acquire_lock_manager_latch(); //get lock manager latch first (avoid deadlock)
+    status_code |= pthread_mutex_lock(&TM::transaction_manager_latch);
     if(status_code) return 0; //error
 
     //check current trx is valid
@@ -208,7 +196,7 @@ int trx_commit_txn(int trx_id){
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
-    lock_release_latch();
+    status_code |= lock_release_lock_manager_latch();
     if(status_code) return 0;
 
     return trx_id;
@@ -218,8 +206,8 @@ int trx_abort_txn(int trx_id){
     int status_code; //check pthread error
 
     //start critical section
-    lock_acquire_latch();
-    status_code = pthread_mutex_lock(&TM::transaction_manager_latch);
+    status_code = lock_acquire_lock_manager_latch(); //get lock manager latch first (avoid deadlock)
+    status_code |= pthread_mutex_lock(&TM::transaction_manager_latch);
     if(status_code) return 0; //error
 
     //check current trx is valid
@@ -238,7 +226,7 @@ int trx_abort_txn(int trx_id){
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
-    lock_release_latch();
+    status_code |= lock_release_lock_manager_latch();
     if(status_code) return 0;
     
     return trx_id;
@@ -289,7 +277,7 @@ int trx_add_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_va
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
-    if(status_code) return 0;
+    if(status_code) return 0; //error
     
     return trx_id;
 }
@@ -313,7 +301,7 @@ lock_t* trx_get_last_lock_in_trx_list(int trx_id){
 
 void close_trx_manager(){
     //start critical section
-    lock_acquire_latch();
+    lock_acquire_lock_manager_latch(); //get lock manager latch first (avoid deadlock)
     pthread_mutex_lock(&TM::transaction_manager_latch);
 
     for(auto& it : TM::trx_table){
@@ -328,6 +316,6 @@ void close_trx_manager(){
 
     //end critical section
     pthread_mutex_unlock(&TM::transaction_manager_latch);
-    lock_release_latch();
+    lock_release_lock_manager_latch();
     return;
 }

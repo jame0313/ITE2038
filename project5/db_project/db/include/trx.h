@@ -1,7 +1,7 @@
 #pragma once
-#include <vector>
 #include "lock.h"
 #include "bpt.h"
+#include <vector>
 
 //Initialize any data structures required for implementing a trx manager, such as a trx table, a trx manager latch, etc.
 //If success, return 0. Otherwise, return a non zero value.
@@ -58,7 +58,7 @@ namespace TM{
         std::vector<trx_log_t*> trx_log; //log list of modification in current trx
         lock_t* nxt_lock_in_trx; //next(head) lock of trx list
         lock_t* last_lock_in_trx; //last(tail) lock of trx list
-        int trx_id;
+        int trx_id; //identifier of entry
     };
 
     //check given trx id is valid
@@ -89,6 +89,13 @@ namespace TM{
     //of given trx_id's trx table entry
     void append_lock_in_table(int trx_id, lock_t* lock_obj);
 
+    //make and initialize trx_log object using given info
+    //return new trx_log object's pointer
+    TM::trx_log_t* make_trx_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size);
+    
+    //append given trx_log object into given trx's log list
+    void append_log_in_list(int trx_id, TM::trx_log_t* log_obj);
+
     //destroy given transaction's log
     void remove_trx_log(int trx_id);
 
@@ -99,11 +106,4 @@ namespace TM{
     //rollback all effects made by given trx
     //by using log list in corresponding trx table entry
     void rollback_trx_log(int trx_id);
-
-    //make and initialize trx_log object using given info
-    //return new trx_log object's pointer
-    TM::trx_log_t* make_trx_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size);
-    
-    //append given trx_log object into given trx's log list
-    void append_log_in_list(int trx_id, TM::trx_log_t* log_obj);
 }
