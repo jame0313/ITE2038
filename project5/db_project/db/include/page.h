@@ -20,7 +20,7 @@ struct lock_t{
     lock_t *nxt_lock = nullptr; //next lock in page lock list
     lock_t *nxt_lock_in_trx = nullptr; //next lock in trx lock list
     lock_head_t *sentinel = nullptr; //lock header in lock list
-    int64_t record_id;
+    int64_t record_id; //record id that lock refer to
     int lock_mode = 0; //lock mode
     int owner_trx_id = 0; //trx id which try to acquire this lock 
     int waiting_num = 0; //mark the lock is sleeping or not

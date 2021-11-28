@@ -73,7 +73,7 @@ namespace FIM{
         int64_t key;
         uint16_t size; //size of value
         uint16_t offset; //in-page offset, point begin of value
-        int trx_id;
+        int trx_id; //transaction id for implicit X lock
     } __attribute__((packed));
 
     //(key, page(pointer)) pair structure

@@ -123,10 +123,14 @@ namespace FIM{
                         trx_abort_txn(trx_id); //abort txn
                         return -1;
                     }
+                    //acquire page latch (shared lock)
                     buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, 2);
+
                     //push record value when ret_val is not NULL
                     *val_size = leaf_page._leaf_page.slot[i].size;
                     memcpy(ret_val,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*val_size);
+
+                    //release page latch
                     buffer_write_page(table_id,leaf_page_number,nullptr);
                 }
                 return 0;
@@ -150,16 +154,19 @@ namespace FIM{
             if(leaf_page._leaf_page.slot[i].key == key){
                 //find record
                 if(values){
+                    //acquire page latch (exclusive lock)
                     buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
-                    //store old_val_size and
-                    //update record value when values is not NULL
+
+                    //store old_val_size and update record value when values is not NULL
                     *old_val_size = leaf_page._leaf_page.slot[i].size;
                     memcpy(leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),values,new_val_size);
-                    //TODO whether change size?
+
+                    //change slot size
                     leaf_page._leaf_page.slot[i].size = new_val_size;
+
+                    //write changes to page and release page latch
+                    buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                 }
-                //TODO write changes to page
-                buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                 return 0;
             }
         }
@@ -188,18 +195,24 @@ namespace FIM{
                         trx_abort_txn(trx_id); //abort txn
                         return -1;
                     }
+                    //acquire page latch (exclusive lock)
                     buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page);
-                    //store old_val_size and old_values and
-                    //update record value when values is not NULL
+
+                    //store old_val_size & old_values and update record value when values is not NULL
                     *old_val_size = leaf_page._leaf_page.slot[i].size;
                     char* old_values = new char[*old_val_size];
+
                     memcpy(old_values,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*old_val_size);
                     memcpy(leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),values,new_val_size);
-                    //TODO whether change size?
+
+                    //change slot size
                     leaf_page._leaf_page.slot[i].size = new_val_size;
+
                     //add log and delete old_value
                     trx_add_log(table_id,key,values,new_val_size,old_values,*old_val_size,trx_id);
                     delete[] old_values;
+
+                    //write changes to page and release page latch
                     buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                 }
                 return 0;

@@ -1,10 +1,10 @@
 #include "api.h"
 
 int init_db(int num_buf){
-    int ret = init_buffer(num_buf);
+    int status_code = init_buffer(num_buf);
     init_lock_table();
     init_trx_manager();
-    return ret;
+    return status_code;
 }
 
 int shutdown_db(){
@@ -57,15 +57,3 @@ int trx_begin(void){
 int trx_commit(int trx_id){
     return trx_commit_txn(trx_id);
 }
-
-/*int close_table(int64_t table_id){
-    try{
-
-        buffer_close_table_file(table_id);
-        file_close_table_file(table_id);
-        return 0;
-    }catch(const char *e){
-        perror(e);
-        return -1;
-    }
-}*/

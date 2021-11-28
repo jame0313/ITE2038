@@ -1,5 +1,4 @@
 #include "buffer.h"
-#include <pthread.h>
 
 namespace BM{
     frame_t *frame_list; //frame(page) array
@@ -58,7 +57,7 @@ namespace BM{
             //try to lock current page
             int status_code = pthread_rwlock_trywrlock(&BM::ctrl_blk_list[cnt_blk].page_latch);
             if(!status_code){
-                //acquired current blk
+                //acquired current blk's lock
                 is_acquired = true;
                 break;
             }
@@ -112,7 +111,6 @@ namespace BM{
             //found case
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
-            
         }
         else{
             //not found case
@@ -130,7 +128,6 @@ namespace BM{
 
             //get block from list
             ret_blk = &BM::ctrl_blk_list[cnt_blk];
-            
             
             if(ret_blk->is_dirty){
                 //flush changes to disk if needed
@@ -222,12 +219,14 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mod
     //get block from buffer
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
-    if(mode){
+    if(mode != 0){
+        //shared lock case
         while(pthread_rwlock_tryrdlock(&ret_blk->page_latch)){
             pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
         }
     }
     else{
+        //exclusive lock case
         while(pthread_rwlock_trywrlock(&ret_blk->page_latch)){
             pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
         }
@@ -236,7 +235,10 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mod
     //copy page content to dest
     memcpy(dest,ret_blk->frame_ptr,sizeof(page_t));
 
-    if(mode==1) pthread_rwlock_unlock(&ret_blk->page_latch);
+    if(mode == 1){
+        //don't lock anymore
+        pthread_rwlock_unlock(&ret_blk->page_latch);
+    }
 
     //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
@@ -244,7 +246,7 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int mod
     return;
 }
 
-// write a page to buffer
+// Write a page to buffer and release page latch
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     int status_code; //check for pthread error
 
@@ -256,20 +258,21 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
     
     if(!pthread_rwlock_trywrlock(&ret_blk->page_latch)){
-        //not pinned to be written
+        //not pinned case
+        //there should be lock before write API
         pthread_rwlock_unlock(&ret_blk->page_latch);
         pthread_mutex_unlock(&BM::buffer_manager_latch);
-        throw "invalid write access";
+        throw "invalid write api call";
     }
 
     if(src){
-        //copy page content to dest
+        //copy page content to dest only if there is changes
         memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
         ret_blk->is_dirty = true; //set dirty bit on
     }
 
     pthread_rwlock_unlock(&ret_blk->page_latch); //unlock current page
-    pthread_cond_broadcast(&ret_blk->cond);
+    pthread_cond_broadcast(&ret_blk->cond); //broadcast to other thread
 
     //end cirtical section
     status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
@@ -279,6 +282,7 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
 
 // Flush all and destroy
 void buffer_close_table_file(){
+    //start cirtical section
     pthread_mutex_lock(&BM::buffer_manager_latch);
 
     for(size_t i=0; i<BM::BUFFER_SIZE; i++){
@@ -296,20 +300,7 @@ void buffer_close_table_file(){
     //clear the hash table
     BM::hash_table.clear();
 
+    //end cirtical section
     pthread_mutex_unlock(&BM::buffer_manager_latch);
-}
-
-void buffer_close_table_file(int64_t table_id){
-    pthread_mutex_lock(&BM::buffer_manager_latch);
-
-    for(size_t i=0; i<BM::BUFFER_SIZE; i++){
-        //scan all block in buffer list
-        if(BM::ctrl_blk_list[i].is_dirty && BM::ctrl_blk_list[i].table_id == table_id){
-            //flush dirty page only
-            BM::ctrl_blk_list[i].is_dirty = 0;
-            BM::flush_frame_to_file(i);
-        }
-    }
-
-    pthread_mutex_unlock(&BM::buffer_manager_latch);
+    return;
 }

@@ -52,5 +52,3 @@ int trx_begin(void);
 //Shrinking phase of strict 2PL
 //Return the completed transaction id if success, otherwise return 0.
 int trx_commit(int trx_id);
-
-//int close_table(int64_t table_id);
