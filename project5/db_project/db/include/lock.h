@@ -28,7 +28,7 @@ lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_i
 int lock_release(lock_t* lock_obj);
 
 //Remove the all lock_obj in trx list from the lock list.
-//NO lock latch lock in this API
+//NO lock manager latch lock in this API
 //YOU SHOULD LOCK BEFORE AND UNLOCK AFTER
 //If success, return 0. Otherwise, return a non zero value.
 int lock_release_all(lock_t* lock_obj);
@@ -71,7 +71,7 @@ namespace LM{
 
     //detect deadlock will occur when given lock inserted into lock table
     //determine deadlock when lock object is owned by source trx (check cycle)
-    //If there is no deadlock, return 1 if there is conflict lock or 0 if not
+    //If there is no deadlock, return the number of conflicting lock
     //If there is deadlock, return -1
     //source_trx_id should be first lock object's owner trx id 
     //DO NOT SET is_first flag false at the first time(always return -1)

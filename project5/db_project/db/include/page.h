@@ -23,7 +23,7 @@ struct lock_t{
     int64_t record_id; //record id that lock refer to
     int lock_mode = 0; //lock mode
     int owner_trx_id = 0; //trx id which try to acquire this lock 
-    int waiting_num = 0; //mark the lock is sleeping or not
+    int waiting_num = 0; //the number of conflicting lock (mark the lock is sleeping or not)
 };
 
 //lock header object structure
