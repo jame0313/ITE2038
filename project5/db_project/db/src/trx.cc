@@ -167,7 +167,7 @@ int trx_begin_txn(void){
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
-    if(status_code) return 0;
+    if(status_code) return 0; //error
 
     return ret_id;
 }
@@ -197,7 +197,7 @@ int trx_commit_txn(int trx_id){
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
     status_code |= lock_release_lock_manager_latch();
-    if(status_code) return 0;
+    if(status_code) return 0; //error
 
     return trx_id;
 }
@@ -227,7 +227,7 @@ int trx_abort_txn(int trx_id){
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
     status_code |= lock_release_lock_manager_latch();
-    if(status_code) return 0;
+    if(status_code) return 0; //error
     
     return trx_id;
 }
@@ -251,7 +251,7 @@ int trx_append_lock_in_trx_list(int trx_id, lock_t* lock_obj){
 
     //end critical section
     status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
-    if(status_code) return 0;
+    if(status_code) return 0; //error
     
     return trx_id;
 }
