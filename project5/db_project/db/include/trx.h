@@ -30,11 +30,13 @@ int trx_append_lock_in_trx_list(int trx_id, lock_t* lock_obj);
 //Append log to trx log list
 //which means old_value changes into new_value
 //Return the transaction id if success, otherwise return 0.
-int trx_add_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size, int trx_id);
+int trx_add_log(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size, int trx_id);
 
 //get last lock object in given trx list
 //Return lock's pointer if success, otherwise return null.
 lock_t* trx_get_last_lock_in_trx_list(int trx_id);
+
+int trx_is_this_trx_valid(int trx_id);
 
 //Rollback all uncommitted result and destroy trx table
 void close_trx_manager();
@@ -48,7 +50,9 @@ namespace TM{
         char *old_value; //point to old value string
         char *new_value; //point to new value string
         int64_t table_id; 
+        pagenum_t page_id;
         int64_t key;
+        uint32_t slot_number;
         uint16_t old_size; //old value string length
         uint16_t new_size; //new value string length
     };
@@ -91,7 +95,7 @@ namespace TM{
 
     //make and initialize trx_log object using given info
     //return new trx_log object's pointer
-    TM::trx_log_t* make_trx_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size);
+    TM::trx_log_t* make_trx_log(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size);
     
     //append given trx_log object into given trx's log list
     void append_log_in_list(int trx_id, TM::trx_log_t* log_obj);

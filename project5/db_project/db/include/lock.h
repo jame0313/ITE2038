@@ -20,7 +20,7 @@ int init_lock_table(void);
 //If there is no predecessor’s conflicting lock object, return the address of the new lock object.
 //If an error occurs, return NULL.
 //lock_mode : 0 (SHARED) or 1 (EXCLUSIVE)
-lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode);
+lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
 
 //Remove the lock_obj from the lock list.
 //If there is a successor’s lock waiting for the transaction releasing the lock, wake up the successor.
@@ -69,6 +69,8 @@ namespace LM{
     //return object's pointer or null if not found 
     lock_t* find_compatible_lock_in_lock_list(lock_head_t* lock_head, lock_t* lock_obj);
 
+    lock_t* find_same_trx_lock_in_lock_list(lock_head_t* lock_head, int trx_id);
+
     //detect deadlock will occur when given lock inserted into lock table
     //determine deadlock when lock object is owned by source trx (check cycle)
     //If there is no deadlock, return the number of conflicting lock
@@ -86,7 +88,7 @@ namespace LM{
     //If there is a predecessor’s conflicting lock object in the lock list, sleep until the predecessor releases its lock.
     //If there is no predecessor’s conflicting lock object, return the address of the new lock object.
     //If an error occurs, return NULL
-    lock_t* try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, int trx_id, int lock_mode);
+    lock_t* try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
 
     //Remove the lock_obj from the lock list.
     //If there is a successor’s lock waiting for the transaction releasing the lock, wake up the successor.

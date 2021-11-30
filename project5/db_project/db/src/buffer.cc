@@ -223,12 +223,14 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int loc
         //shared lock case
         while(pthread_rwlock_tryrdlock(&ret_blk->page_latch)){
             pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
+            ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
         }
     }
     else{
         //exclusive lock case
         while(pthread_rwlock_trywrlock(&ret_blk->page_latch)){
             pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
+            ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
         }
     }
 

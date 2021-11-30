@@ -117,7 +117,7 @@ namespace FIM{
                 //find record
                 if(ret_val){
                     //try to acquire shared lock
-                    lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, SHARED_LOCK_MODE);
+                    lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, i, trx_id, SHARED_LOCK_MODE);
                     if(!shared_lock){
                         //acquire failed case
                         trx_abort_txn(trx_id); //abort txn
@@ -189,7 +189,7 @@ namespace FIM{
                 //find record
                 if(values){
                     //try to acquire exclusive lock
-                    lock_t* exclusive_lock = lock_acquire(table_id, leaf_page_number, key, trx_id, EXCLUSIVE_LOCK_MODE);
+                    lock_t* exclusive_lock = lock_acquire(table_id, leaf_page_number, key, i, trx_id, EXCLUSIVE_LOCK_MODE);
                     if(!exclusive_lock){
                         //acquire failed case
                         trx_abort_txn(trx_id); //abort txn
@@ -212,7 +212,7 @@ namespace FIM{
                     buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                    
                     //add log and delete old_value
-                    trx_add_log(table_id,key,values,new_val_size,old_values,*old_val_size,trx_id);
+                    trx_add_log(table_id,leaf_page_number,key,i,values,new_val_size,old_values,*old_val_size,trx_id);
                     delete[] old_values;
                 }
                 return 0;
@@ -1225,4 +1225,22 @@ int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t 
         perror(e);
         return -1;
     }
+}
+
+int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, page_t* ret_page){
+    FIM::_fim_page_t *leaf_page = reinterpret_cast<FIM::_fim_page_t*>(ret_page);
+    buffer_read_page(table_id,page_id,&leaf_page->_raw_page, BUFFER_WRITE_LOCK_MODE);
+    return leaf_page->_leaf_page.slot[slot_number].trx_id;
+}
+
+void idx_set_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, int trx_id, page_t* raw_page){
+    if(raw_page){
+        FIM::_fim_page_t *leaf_page = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
+        leaf_page->_leaf_page.slot[slot_number].trx_id = trx_id;
+        buffer_write_page(table_id,page_id,&leaf_page->_raw_page);
+    }
+    else{
+        buffer_write_page(table_id,page_id,nullptr);
+    }
+    return;
 }

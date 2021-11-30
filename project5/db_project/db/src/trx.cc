@@ -78,13 +78,15 @@ namespace TM{
         return;
     }
 
-    TM::trx_log_t* make_trx_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size){
+    TM::trx_log_t* make_trx_log(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size){
         //make new object
         TM::trx_log_t* ret = new trx_log_t;
         
         //initialize object
         ret->table_id = table_id;
+        ret->page_id = page_id;
         ret->key = key;
+        ret->slot_number = slot_number;
         ret->old_size = old_val_size;
         ret->new_size = new_val_size;
 
@@ -107,8 +109,11 @@ namespace TM{
     void remove_trx_log(int trx_id){
         //get trx log given txn id
         auto& v = TM::trx_table[trx_id].trx_log;
-
+        page_t* tmp_page = new page_t;
         for(auto log : v){
+            //release implicit lock
+            idx_get_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, tmp_page);
+            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0, tmp_page);
             //delete char string and log object
             delete[] log->old_value;
             delete[] log->new_value;
@@ -256,7 +261,7 @@ int trx_append_lock_in_trx_list(int trx_id, lock_t* lock_obj){
     return trx_id;
 }
 
-int trx_add_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size, int trx_id){
+int trx_add_log(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, char *new_values, uint16_t new_val_size, char *old_values, uint16_t old_val_size, int trx_id){
     int status_code; //check pthread error
 
     //start critical section
@@ -266,7 +271,7 @@ int trx_add_log(int64_t table_id, int64_t key, char *new_values, uint16_t new_va
     //check current trx is valid
     if(TM::is_trx_valid(trx_id)){
         //make new log object
-        TM::trx_log_t *log_obj = TM::make_trx_log(table_id, key, new_values, new_val_size, old_values, old_val_size);
+        TM::trx_log_t *log_obj = TM::make_trx_log(table_id, page_id, key, slot_number, new_values, new_val_size, old_values, old_val_size);
         //append log in the list
         TM::append_log_in_list(trx_id, log_obj);
     }
@@ -297,6 +302,26 @@ lock_t* trx_get_last_lock_in_trx_list(int trx_id){
     if(status_code) return nullptr; //error
     
     return tail;
+}
+
+int trx_is_this_trx_valid(int trx_id){
+    int status_code; //check pthread error
+
+    int ret_val = 0;
+
+    //start critical section
+    status_code = pthread_mutex_lock(&TM::transaction_manager_latch);
+    if(status_code) return -1; //error
+
+    //check validation
+    ret_val = TM::is_trx_valid(trx_id);
+
+    //end critical section
+    status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
+    if(status_code) return -1; //error
+    
+    return ret_val;
+
 }
 
 void close_trx_manager(){
