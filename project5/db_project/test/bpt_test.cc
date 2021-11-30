@@ -150,7 +150,7 @@ TEST(FileandIndexManager, RANDOM_TEST){
     std::random_device rd;
 	std::mt19937 gen(random_seed?rd():static_seed);
     std::default_random_engine rng(random_seed?rd():static_seed);
-    shuffle(key_list.begin(),key_list.end(),rng);
+    std::shuffle(key_list.begin(),key_list.end(),rng);
     
     //in-memory record list
     std::vector<std::pair<int64_t, std::string>> key_value_pairs {};
