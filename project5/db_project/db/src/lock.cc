@@ -131,8 +131,8 @@ namespace LM{
 
         //flags for filter first conflicting lock
         int waiting_num = 0;
-        bool has_prev_shared_lock = false;
-        bool has_prev_exclusive_lock = false;
+        uint64_t has_prev_shared_lock = 0;
+        uint64_t has_prev_exclusive_lock = 0;
 
         //searching phase
         while(cnt_lock){
@@ -142,16 +142,30 @@ namespace LM{
             if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 ) && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
                 if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
                     //current lock is X lock
-                    has_prev_exclusive_lock = true;
-                    if(has_prev_shared_lock){
+                    if(((has_prev_shared_lock|has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
                         //there is conflicting S lock after this lock
                         //no need to check further (we already checked all S lock)
-                        //break;
+                        //get next lock
+                        has_prev_exclusive_lock |= cnt_lock->bitmap;
+                        cnt_lock = cnt_lock->prev_lock;
+                        continue;
                     }
+                    
+                    has_prev_exclusive_lock |= cnt_lock->bitmap;
+                    
                 }
                 else{
                     //current lock is S lock
-                    has_prev_shared_lock = true;
+                    if(((has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
+                        //there is conflicting S lock after this lock
+                        //no need to check further (we already checked all S lock)
+                        //get next lock
+                        has_prev_shared_lock |= cnt_lock->bitmap;
+                        cnt_lock = cnt_lock->prev_lock;
+                        continue;
+                    }
+
+                    has_prev_shared_lock |= cnt_lock->bitmap;
                 }
 
                 //current trx waits for cnt_lock's trx(cnt_lock->owner_trx_id)
@@ -169,12 +183,6 @@ namespace LM{
                     //deadlock occured
                     //return -1
                     return ret;
-                }
-                
-                if(has_prev_exclusive_lock){
-                    //checked X lock in deadlock detection
-                    //no need to check further
-                    //break;
                 }
             }
 
@@ -202,8 +210,8 @@ namespace LM{
         lock_t *cnt_lock = lock_obj->nxt_lock;
 
         //flags for filter first conflicting lock
-        bool has_prev_shared_lock = false;
-        bool has_prev_exclusive_lock = false;
+        uint64_t has_prev_shared_lock = 0;
+        uint64_t has_prev_exclusive_lock = 0;
 
         //searching phase
         while(cnt_lock){
@@ -213,16 +221,29 @@ namespace LM{
             if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 ) && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
                 if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
                     //current lock is X lock
-                    has_prev_exclusive_lock = true;
-                    if(has_prev_shared_lock){
+                    if(((has_prev_shared_lock|has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
                         //there is conflicting S lock after this lock
                         //no need to check further (we already checked all S lock)
-                        //break;
+                        //get next lock
+                        has_prev_exclusive_lock |= cnt_lock->bitmap;
+                        cnt_lock = cnt_lock->nxt_lock;
+                        continue;
                     }
+                    
+                    has_prev_exclusive_lock |= cnt_lock->bitmap;
+                    
                 }
                 else{
                     //current lock is S lock
-                    has_prev_shared_lock = true;
+                    if(((has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
+                        //there is conflicting S lock after this lock
+                        //no need to check further (we already checked all S lock)
+                        //get next lock
+                        has_prev_shared_lock |= cnt_lock->bitmap;
+                        cnt_lock = cnt_lock->nxt_lock;
+                        continue;
+                    }
+                    has_prev_shared_lock |= cnt_lock->bitmap;
                 }
 
                 if(cnt_lock->waiting_num > 0){
@@ -230,12 +251,6 @@ namespace LM{
                     cnt_lock->waiting_num--;
                     //wake up the successor if there is no longer conflicting trx
                     if(cnt_lock->waiting_num == 0) pthread_cond_signal(&cnt_lock->cond);
-                }
-
-                if(has_prev_exclusive_lock){
-                    //wake up X lock
-                    //no need to check further
-                    //break;
                 }
             }
 
