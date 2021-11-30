@@ -352,7 +352,7 @@ TEST(TransactionManager, RANDOM_MULTI_THREAD_TEST){
     const int query = 800000; //number of query
     bool random_seed = true; //set random_seed
     const int static_seed = 1234; //default static seed
-    const int thread_number = 200;
+    const int thread_number = 64;
 
     int prob_table[] = {95, 95}; //set ratio of style of each type query
 

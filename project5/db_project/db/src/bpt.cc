@@ -208,12 +208,12 @@ namespace FIM{
                     //change slot size
                     leaf_page._leaf_page.slot[i].size = new_val_size;
 
+                    //write changes to page and release page latch
+                    buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                   
                     //add log and delete old_value
                     trx_add_log(table_id,key,values,new_val_size,old_values,*old_val_size,trx_id);
                     delete[] old_values;
-
-                    //write changes to page and release page latch
-                    buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
                 }
                 return 0;
             }
