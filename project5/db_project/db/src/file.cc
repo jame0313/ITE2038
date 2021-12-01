@@ -63,7 +63,7 @@ namespace DSM{
         if(pwrite64(fd,src,sizeof(page_t),pagenum*PAGE_SIZE)!=sizeof(page_t)){
             throw "write system call failed!";
         }
-        if(fsync(fd)==-1) throw "sync system call failed!";
+        //if(fsync(fd)==-1) throw "sync system call failed!";
     }
 
     void load_page_from_file(int fd, pagenum_t pagenum, page_t* dest){
@@ -100,7 +100,7 @@ int64_t file_open_table_file(const char* pathname){
     int fd;
 
     //open file with RW mode
-    if((fd=open64(pathname, O_RDWR)) == -1){
+    if((fd=open64(pathname, O_RDWR | O_SYNC)) == -1){
         //case when there is no such file
         //need to create and init db file
 
