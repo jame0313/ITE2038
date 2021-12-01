@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <utility>
 #include <pthread.h>
+#include <ext/pb_ds/assoc_container.hpp>
 
 #define DEFAULT_BUFFER_SIZE 1024
 

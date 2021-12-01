@@ -7,7 +7,7 @@ namespace BM{
     //hash table that mapping ctrl block in the list
     //search key is page_id({table_id, pagenum})
     //value is block num
-    std::unordered_map<page_id, blknum_t, BM::hash_pair> hash_table;
+    __gnu_pbds::gp_hash_table<page_id, blknum_t, BM::hash_pair> hash_table;
 
     size_t BUFFER_SIZE = 0;
 
