@@ -124,7 +124,7 @@ namespace TM{
             delete[] log->new_value;
             delete log;
         }
-
+        delete tmp_page;
         v.clear(); //clear list
     }
 
