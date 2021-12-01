@@ -124,14 +124,16 @@ namespace FIM{
                         return -1;
                     }
                     //acquire page latch (shared lock)
-                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_READ_LOCK_MODE);
+                    //buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_READ_LOCK_MODE);
+                    page_t* raw_page = buffer_direct_read_page(table_id,leaf_page_number);
+                    FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
 
                     //push record value when ret_val is not NULL
-                    *val_size = leaf_page._leaf_page.slot[i].size;
-                    memcpy(ret_val,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*val_size);
+                    *val_size = leaf_page_ptr->_leaf_page.slot[i].size;
+                    memcpy(ret_val,leaf_page_ptr->_raw_page.raw_data+(leaf_page_ptr->_leaf_page.slot[i].offset),*val_size);
 
                     //release page latch
-                    buffer_write_page(table_id,leaf_page_number,nullptr);
+                    buffer_direct_write_page(table_id,leaf_page_number,false);
                 }
                 return 0;
             }
@@ -155,17 +157,19 @@ namespace FIM{
                 //find record
                 if(values){
                     //acquire page latch (exclusive lock)
-                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_WRITE_LOCK_MODE);
+                    //buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_WRITE_LOCK_MODE);
+                    page_t* raw_page = buffer_direct_read_page(table_id,leaf_page_number);
+                    FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
 
                     //store old_val_size and update record value when values is not NULL
-                    *old_val_size = leaf_page._leaf_page.slot[i].size;
-                    memcpy(leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),values,new_val_size);
+                    *old_val_size = leaf_page_ptr->_leaf_page.slot[i].size;
+                    memcpy(leaf_page_ptr->_raw_page.raw_data+(leaf_page_ptr->_leaf_page.slot[i].offset),values,new_val_size);
 
                     //change slot size
-                    leaf_page._leaf_page.slot[i].size = new_val_size;
+                    leaf_page_ptr->_leaf_page.slot[i].size = new_val_size;
 
                     //write changes to page and release page latch
-                    buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                    buffer_direct_write_page(table_id,leaf_page_number,true);
                 }
                 return 0;
             }
@@ -196,20 +200,22 @@ namespace FIM{
                         return -1;
                     }
                     //acquire page latch (exclusive lock)
-                    buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_WRITE_LOCK_MODE);
+                    //buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_WRITE_LOCK_MODE);
+                    page_t* raw_page = buffer_direct_read_page(table_id,leaf_page_number);
+                    FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
 
                     //store old_val_size & old_values and update record value when values is not NULL
-                    *old_val_size = leaf_page._leaf_page.slot[i].size;
+                    *old_val_size = leaf_page_ptr->_leaf_page.slot[i].size;
                     char* old_values = new char[*old_val_size];
 
-                    memcpy(old_values,leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),*old_val_size);
-                    memcpy(leaf_page._raw_page.raw_data+(leaf_page._leaf_page.slot[i].offset),values,new_val_size);
+                    memcpy(old_values,leaf_page_ptr->_raw_page.raw_data+(leaf_page_ptr->_leaf_page.slot[i].offset),*old_val_size);
+                    memcpy(leaf_page_ptr->_raw_page.raw_data+(leaf_page_ptr->_leaf_page.slot[i].offset),values,new_val_size);
 
                     //change slot size
-                    leaf_page._leaf_page.slot[i].size = new_val_size;
+                    leaf_page_ptr->_leaf_page.slot[i].size = new_val_size;
 
                     //write changes to page and release page latch
-                    buffer_write_page(table_id,leaf_page_number,&leaf_page._raw_page);
+                    buffer_direct_write_page(table_id,leaf_page_number,true);
                    
                     //add log and delete old_value
                     trx_add_log(table_id,leaf_page_number,key,i,values,new_val_size,old_values,*old_val_size,trx_id);
@@ -1227,20 +1233,21 @@ int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t 
     }
 }
 
-int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, page_t* ret_page){
-    FIM::_fim_page_t *leaf_page = reinterpret_cast<FIM::_fim_page_t*>(ret_page);
-    buffer_read_page(table_id,page_id,&leaf_page->_raw_page, BUFFER_WRITE_LOCK_MODE);
-    return leaf_page->_leaf_page.slot[slot_number].trx_id;
+int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, page_t** ret_page){
+    //FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(new page_t );
+    //buffer_read_page(table_id,page_id,&leaf_page_ptr->_raw_page, BUFFER_WRITE_LOCK_MODE);
+    page_t* raw_page = buffer_direct_read_page(table_id,page_id);
+    FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
+    *ret_page = &(leaf_page_ptr->_raw_page);
+    return leaf_page_ptr->_leaf_page.slot[slot_number].trx_id;
 }
 
 void idx_set_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, int trx_id, page_t* raw_page){
-    if(raw_page){
-        FIM::_fim_page_t *leaf_page = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
-        leaf_page->_leaf_page.slot[slot_number].trx_id = trx_id;
-        buffer_write_page(table_id,page_id,&leaf_page->_raw_page);
-    }
-    else{
-        buffer_write_page(table_id,page_id,nullptr);
-    }
+    FIM::_fim_page_t *leaf_page = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
+    bool is_dirty = leaf_page->_leaf_page.slot[slot_number].trx_id != trx_id;
+    leaf_page->_leaf_page.slot[slot_number].trx_id = trx_id;
+    //buffer_write_page(table_id, page_id, is_dirty?raw_page:nullptr);
+    //delete raw_page;
+    buffer_direct_write_page(table_id,page_id,is_dirty);
     return;
 }

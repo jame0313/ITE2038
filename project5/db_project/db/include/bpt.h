@@ -50,7 +50,7 @@ int idx_update_by_key(int64_t table_id, int64_t key, char *values, uint16_t new_
 //Note that all tasks that need to be handled should be completed in db_update
 int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t new_val_size, uint16_t *old_val_size, int trx_id);
 
-int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, page_t* ret_page);
+int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, page_t** ret_page);
 
 void idx_set_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, int trx_id, page_t* raw_page);
 

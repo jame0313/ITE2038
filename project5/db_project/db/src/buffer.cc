@@ -248,6 +248,29 @@ void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int loc
     return;
 }
 
+// read directly a page from buffer
+page_t* buffer_direct_read_page(int64_t table_id, pagenum_t pagenum){
+    int status_code; //check for pthread error
+
+    //start cirtical section
+    status_code = pthread_mutex_lock(&BM::buffer_manager_latch);
+    if(status_code) throw "pthread error occurred";
+
+    //get block from buffer
+    BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
+    
+    //shared lock case
+    while(pthread_rwlock_tryrdlock(&ret_blk->page_latch)){
+       pthread_cond_wait(&ret_blk->cond,&BM::buffer_manager_latch);
+        ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
+    }
+
+    //end cirtical section
+    status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
+    if(status_code) throw "pthread error occurred";
+    return ret_blk->frame_ptr;
+}
+
 // Write a page to buffer and release page latch
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
     int status_code; //check for pthread error
@@ -272,6 +295,36 @@ void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src){
         memcpy(ret_blk->frame_ptr,src,sizeof(page_t));
         ret_blk->is_dirty = true; //set dirty bit on
     }
+
+    pthread_rwlock_unlock(&ret_blk->page_latch); //unlock current page
+    pthread_cond_broadcast(&ret_blk->cond); //broadcast to other thread
+
+    //end cirtical section
+    status_code = pthread_mutex_unlock(&BM::buffer_manager_latch);
+    if(status_code) throw "pthread error occurred";
+    return;
+}
+
+// Write a page to buffer and release page latch
+void buffer_direct_write_page(int64_t table_id, pagenum_t pagenum, bool is_dirty){
+    int status_code; //check for pthread error
+
+    //start cirtical section
+    status_code = pthread_mutex_lock(&BM::buffer_manager_latch);
+    if(status_code) throw "pthread error occurred";
+
+    //get block from buffer
+    BM::ctrl_blk* ret_blk = BM::get_ctrl_blk_from_buffer(table_id,pagenum);
+    
+    if(!pthread_rwlock_trywrlock(&ret_blk->page_latch)){
+        //not pinned case
+        //there should be lock before write API
+        pthread_rwlock_unlock(&ret_blk->page_latch);
+        pthread_mutex_unlock(&BM::buffer_manager_latch);
+        throw "invalid write api call";
+    }
+
+    ret_blk->is_dirty |= is_dirty;
 
     pthread_rwlock_unlock(&ret_blk->page_latch); //unlock current page
     pthread_cond_broadcast(&ret_blk->cond); //broadcast to other thread

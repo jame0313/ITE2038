@@ -314,14 +314,14 @@ namespace LM{
         }
 
         if(conflicting_flag == 0){
-            page_t* tmp_page = new page_t;
+            page_t** tmp_page = new page_t*;
 
             int acquired_trx_id = idx_get_trx_id_in_slot(table_id, page_id, slot_number, tmp_page);
 
             if(acquired_trx_id == trx_id){
                 //found compatible lock
                 //just return this lock
-                idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, nullptr);
+                idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
                 delete tmp_page;
                 delete ret;
                 return (lock_t*)1;
@@ -332,7 +332,7 @@ namespace LM{
             if(is_valid >= 0){
                 if(is_valid > 0){
                     //do explicit lock
-                    idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, nullptr);
+                    idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
                     delete tmp_page;
                     delete ret;
                     lock_t* prev_lock = new lock_t;
@@ -361,7 +361,7 @@ namespace LM{
                 }
                 else{
                     if(lock_mode == SHARED_LOCK_MODE){
-                        idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, nullptr);
+                        idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
                         delete tmp_page;
                         //get same trx lock for lock compression
                         lock_t* same_trx_lock = LM::find_same_trx_lock_in_lock_list(lock_head, trx_id);
@@ -373,7 +373,7 @@ namespace LM{
                     }
                     if(lock_mode == EXCLUSIVE_LOCK_MODE){
                         //do implicit lock
-                        idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id, tmp_page);
+                        idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id, *tmp_page);
                         delete tmp_page;
                         delete ret;
                         return (lock_t*)1;

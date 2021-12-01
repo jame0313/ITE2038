@@ -114,11 +114,11 @@ namespace TM{
     void remove_trx_log(int trx_id){
         //get trx log given txn id
         auto& v = TM::trx_table[trx_id].trx_log;
-        page_t* tmp_page = new page_t;
+        page_t** tmp_page = new page_t*;
         for(auto log : v){
             //release implicit lock
             idx_get_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, tmp_page);
-            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0, tmp_page);
+            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0, *tmp_page);
             //delete char string and log object
             delete[] log->old_value;
             delete[] log->new_value;

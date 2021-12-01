@@ -32,8 +32,12 @@ void buffer_free_page(int64_t table_id, pagenum_t pagenum);
 // mode is 0(exclusive lock), 1(chk exclusive lock only, no locking), or 2(shared lock) 
 void buffer_read_page(int64_t table_id, pagenum_t pagenum, page_t* dest, int lock_policy = BUFFER_WRITE_LOCK_MODE);
 
+page_t* buffer_direct_read_page(int64_t table_id, pagenum_t pagenum);
+
 // Write a page to buffer and release page latch
 void buffer_write_page(int64_t table_id, pagenum_t pagenum, const page_t* src);
+
+void buffer_direct_write_page(int64_t table_id, pagenum_t pagenum, bool is_dirty);
 
 // Flush all and destroy
 void buffer_close_table_file();
