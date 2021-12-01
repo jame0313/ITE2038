@@ -136,6 +136,7 @@ namespace LM{
 
         //searching phase
         while(cnt_lock){
+            if((has_prev_exclusive_lock & bitmap) == bitmap) break;
             //find same record lock
             //which trx id is not same (same trx lock is not conflicted)
             //and at least one is X lock (only S lock doesn't make conflict)
@@ -215,6 +216,7 @@ namespace LM{
 
         //searching phase
         while(cnt_lock){
+            if((has_prev_exclusive_lock & bitmap) == bitmap) break;
             //find same record lock
             //which trx id is not same (same trx lock is not conflicted)
             //and at least one is X lock (only S lock doesn't make conflict)

@@ -63,6 +63,11 @@ namespace TM{
     }
 
     void append_lock_in_table(int trx_id, lock_t* lock_obj){
+        if(TM::trx_table[trx_id].last_lock_in_trx && TM::trx_table[trx_id].last_lock_in_trx->waiting_num > 0){
+            lock_obj->nxt_lock_in_trx = TM::trx_table[trx_id].nxt_lock_in_trx;
+            TM::trx_table[trx_id].nxt_lock_in_trx = lock_obj;
+            return;
+        }
         if(TM::trx_table[trx_id].last_lock_in_trx){
             //there is lock in the trx list
             //connect with last lock in old list
