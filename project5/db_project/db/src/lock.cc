@@ -31,7 +31,10 @@ namespace LM{
         ret->owner_trx_id = trx_id;
         ret->record_id = key;
         ret->bitmap = slot_number_bitmask;
+        return ret;
+    }
 
+    int connect_with_lock_head(int64_t table_id, pagenum_t page_id, lock_t* lock_obj){
         //find page lock list header
         lock_head_t *lock_head = LM::find_lock_head_in_table(table_id,page_id);
 
@@ -43,14 +46,13 @@ namespace LM{
 
         if(lock_head->table_id != table_id || lock_head->page_id != page_id){
             //lock table mismatched case
-            delete ret;
-            return nullptr; //error
+            return -1; //error
         }
 
         //set sentinel
-        ret->sentinel = lock_head;
+        lock_obj->sentinel = lock_head;
 
-        return ret;
+        return 0; //success
     }
 
     lock_head_t* find_lock_head_in_table(int64_t table_id, pagenum_t pagenum){
@@ -95,6 +97,35 @@ namespace LM{
 
         //make connection in respect to transaction table lock list
         trx_append_lock_in_trx_list(lock_obj->owner_trx_id, lock_obj);
+
+        return;
+    }
+
+    void remove_lock_from_lock_list(lock_t* lock_obj){
+        //get lock header
+        lock_head_t *lock_head = lock_obj->sentinel;
+
+        if(lock_obj->prev_lock){
+            //predecessor lock existed
+            //connect it with nxt lock
+            lock_obj->prev_lock->nxt_lock = lock_obj->nxt_lock;
+        }
+        else{
+            //current lock is first lock in the list
+            //update head lock
+            lock_head->head = lock_obj->nxt_lock;
+        }
+
+        if(lock_obj->nxt_lock){
+            //successor lock existed
+            //connect it with prev lock
+            lock_obj->nxt_lock->prev_lock = lock_obj->prev_lock;
+        }
+        else{
+            //current lock is last lock in the list
+            //update tail lock
+            lock_head->tail = lock_obj->prev_lock;
+        }
 
         return;
     }
@@ -348,40 +379,37 @@ namespace LM{
         return;
     }
 
-    void remove_lock_from_lock_list(lock_t* lock_obj){
-        //get lock header
-        lock_head_t *lock_head = lock_obj->sentinel;
+    void convert_implicit_lock_to_explicit_lock(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id){
+        //make implicit lock to explicit lock
+        lock_t* explicit_lock = make_and_init_new_lock_object(table_id, page_id, key, slot_number, trx_id, EXCLUSIVE_LOCK_MODE);
+                
+        //connect with lock header
+        LM::connect_with_lock_head(table_id,page_id,explicit_lock);
 
-        if(lock_obj->prev_lock){
-            //predecessor lock existed
-            //connect it with nxt lock
-            lock_obj->prev_lock->nxt_lock = lock_obj->nxt_lock;
-        }
-        else{
-            //current lock is first lock in the list
-            //update head lock
-            lock_head->head = lock_obj->nxt_lock;
-        }
+        //connect to lock tail
+        explicit_lock->prev_lock =  explicit_lock->sentinel->tail;
 
-        if(lock_obj->nxt_lock){
-            //successor lock existed
-            //connect it with prev lock
-            lock_obj->nxt_lock->prev_lock = lock_obj->prev_lock;
-        }
-        else{
-            //current lock is last lock in the list
-            //update tail lock
-            lock_head->tail = lock_obj->prev_lock;
-        }
+        //append lock into page lock list and trx lock list
+        LM::append_lock_in_lock_list(explicit_lock);
 
         return;
     }
 
+
+
     int try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
         
+        //make new lock
         lock_t* ret = LM::make_and_init_new_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
 
-        lock_head_t *lock_head = ret->sentinel;
+        //connect with lock header
+        if(LM::connect_with_lock_head(table_id,page_id,ret) != 0){
+            //error with lock header
+            delete ret;
+            return -1;
+        }
+
+        lock_head_t *lock_head = ret->sentinel; //get lock header
 
         //find compatible lock(acquired previous lock in same txn) in the list
         lock_t* compatible_lock = LM::find_compatible_lock_in_lock_list(lock_head, ret);
@@ -408,16 +436,9 @@ namespace LM{
         if(conflicting_flag == 0){
             //there is no conflicting lock in the list
             //need to check implicit lock
-            
-            //tmp page for read and write slot in index layer
-            page_t** tmp_page = new page_t*;
 
             //get trx id in current slot for implicit locking
-            int acquired_trx_id = idx_get_trx_id_in_slot(table_id, page_id, slot_number, tmp_page);
-
-            //release right now
-            idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
-            delete tmp_page;
+            int acquired_trx_id = idx_get_trx_id_in_slot(table_id, page_id, slot_number);
 
             if(acquired_trx_id == trx_id){
                 //found compatible implicit lock
@@ -428,34 +449,25 @@ namespace LM{
 
             //check trx id in slot is alive
             int is_valid = trx_is_this_trx_valid(acquired_trx_id);
-            
+
+            if(is_valid < 0){
+                //error in trx manager
+                delete ret;
+                return -1;
+            }
+
             if(is_valid > 0){
                 //there is implicit lock in slot
                 //need explicit lock for both txn
 
-                //make implicit lock to explicit lock
-                lock_t* prev_lock = make_and_init_new_lock_object(table_id, page_id, key, slot_number, acquired_trx_id, EXCLUSIVE_LOCK_MODE);
-                
-                //connect prev lock
-                prev_lock->prev_lock = lock_head->tail;
-
-                //append prev lock into page lock list and trx lock list
-                LM::append_lock_in_lock_list(prev_lock);
+                //convert implicit lock to explicit lock
+                convert_implicit_lock_to_explicit_lock(table_id,page_id,key,slot_number,acquired_trx_id);
 
                 //delete lock
                 delete ret;
 
                 //try lock again
                 return LM::try_to_acquire_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
-            }
-            else if(is_valid == 0){
-                //there is no implicit lock in slot
-            }
-
-            if(is_valid < 0){
-                //error in trx manager
-                delete ret;
-                return -1;
             }
         }
 
@@ -476,6 +488,7 @@ namespace LM{
 
         if(lock_mode == SHARED_LOCK_MODE){
             //do lock compression
+
             //get same trx lock for lock compression 
             lock_t* same_trx_lock = LM::find_same_trx_lock_in_lock_list(lock_head, trx_id);
 
@@ -491,23 +504,17 @@ namespace LM{
                 //disconnect in respect to transaction table lock list
                 trx_remove_lock_in_trx_list(ret->owner_trx_id, ret);
 
-                //delete ret;
+                delete ret;
                 return 0;
             }
         }
+
         if(lock_mode == EXCLUSIVE_LOCK_MODE){
             //do implicit lock
 
-            //tmp page for read and write slot in index layer
-            page_t** tmp_page = new page_t*;
-
-            //read slot for implicit locking
-            idx_get_trx_id_in_slot(table_id, page_id, slot_number, tmp_page);
-
             //write slot for implicit locking
-            idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id, *tmp_page);
+            idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id);
 
-            delete tmp_page;
             return 0;
         }
 

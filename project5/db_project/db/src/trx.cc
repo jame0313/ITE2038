@@ -64,7 +64,10 @@ namespace TM{
 
     void append_lock_in_table(int trx_id, lock_t* lock_obj){
         if(TM::trx_table[trx_id].last_lock_in_trx && TM::trx_table[trx_id].last_lock_in_trx->waiting_num > 0){
-            //append at the front
+            //last lock is sleeping state
+
+            //append at the front instead of end
+            //for deadlock detection implementation
             lock_obj->nxt_lock_in_trx = TM::trx_table[trx_id].nxt_lock_in_trx;
             TM::trx_table[trx_id].nxt_lock_in_trx->prev_lock_in_trx = lock_obj;
 
@@ -91,7 +94,7 @@ namespace TM{
     void remove_lock_in_table(int trx_id, lock_t* lock_obj){
         if(lock_obj->prev_lock_in_trx){
             //predecessor lock existed
-            //connect it with nxt lock
+            //disconnect it with nxt lock
             lock_obj->prev_lock_in_trx->nxt_lock_in_trx = lock_obj->nxt_lock_in_trx;
         }
         else{
@@ -102,7 +105,7 @@ namespace TM{
 
         if(lock_obj->nxt_lock_in_trx){
             //successor lock existed
-            //connect it with prev lock
+            //disconnect it with prev lock
             lock_obj->nxt_lock_in_trx->prev_lock_in_trx = lock_obj->prev_lock_in_trx;
         }
         else{
@@ -147,8 +150,7 @@ namespace TM{
         page_t** tmp_page = new page_t*;
         for(auto log : v){
             //release implicit lock
-            idx_get_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, tmp_page);
-            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0, *tmp_page);
+            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0);
             //delete char string and log object
             delete[] log->old_value;
             delete[] log->new_value;
@@ -305,7 +307,7 @@ int trx_remove_lock_in_trx_list(int trx_id, lock_t* lock_obj){
 
     //check current trx is valid
     if(TM::is_trx_valid(trx_id)){
-        //append lock in the list
+        //remove lock in the list
         TM::remove_lock_in_table(trx_id,lock_obj);
     }
     else{

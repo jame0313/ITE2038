@@ -27,6 +27,8 @@ int trx_abort_txn(int trx_id);
 //Return the transaction id if success, otherwise return 0.
 int trx_append_lock_in_trx_list(int trx_id, lock_t* lock_obj);
 
+//remove given lock object to given trx list in transaction table
+//Return the transaction id if success, otherwise return 0.
 int trx_remove_lock_in_trx_list(int trx_id, lock_t* lock_obj);
 
 //Append log to trx log list
@@ -94,6 +96,10 @@ namespace TM{
     //append lock object in trx lock list
     //of given trx_id's trx table entry
     void append_lock_in_table(int trx_id, lock_t* lock_obj);
+
+    //remove lock object in trx lock list
+    //of given trx_id's trx table entry
+    void remove_lock_in_table(int trx_id, lock_t* lock_obj);
 
     //make and initialize trx_log object using given info
     //return new trx_log object's pointer

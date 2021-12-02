@@ -124,7 +124,6 @@ namespace FIM{
                         return -1;
                     }
                     //acquire page latch (shared lock)
-                    //buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_READ_LOCK_MODE);
                     page_t* raw_page = buffer_direct_read_page(table_id,leaf_page_number);
                     FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
 
@@ -157,7 +156,6 @@ namespace FIM{
                 //find record
                 if(values){
                     //acquire page latch (exclusive lock)
-                    //buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_WRITE_LOCK_MODE);
                     page_t* raw_page = buffer_direct_read_page(table_id,leaf_page_number);
                     FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
 
@@ -200,7 +198,6 @@ namespace FIM{
                         return -1;
                     }
                     //acquire page latch (exclusive lock)
-                    //buffer_read_page(table_id,leaf_page_number,&leaf_page._raw_page, BUFFER_WRITE_LOCK_MODE);
                     page_t* raw_page = buffer_direct_read_page(table_id,leaf_page_number);
                     FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
 
@@ -1233,21 +1230,29 @@ int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t 
     }
 }
 
-int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, page_t** ret_page){
-    //FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(new page_t );
-    //buffer_read_page(table_id,page_id,&leaf_page_ptr->_raw_page, BUFFER_WRITE_LOCK_MODE);
+int idx_get_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number){
+    //read target page
     page_t* raw_page = buffer_direct_read_page(table_id,page_id);
     FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
-    *ret_page = &(leaf_page_ptr->_raw_page);
+
+    //close target page
+    buffer_direct_write_page(table_id, page_id, false);
+
+    //return target slot's trx id
     return leaf_page_ptr->_leaf_page.slot[slot_number].trx_id;
 }
 
-void idx_set_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, int trx_id, page_t* raw_page){
-    FIM::_fim_page_t *leaf_page = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
-    bool is_dirty = leaf_page->_leaf_page.slot[slot_number].trx_id != trx_id;
-    leaf_page->_leaf_page.slot[slot_number].trx_id = trx_id;
-    //buffer_write_page(table_id, page_id, is_dirty?raw_page:nullptr);
-    //delete raw_page;
+void idx_set_trx_id_in_slot(int64_t table_id, pagenum_t page_id, uint32_t slot_number, int trx_id){
+    //read target page
+    page_t* raw_page = buffer_direct_read_page(table_id,page_id);
+    FIM::_fim_page_t *leaf_page_ptr = reinterpret_cast<FIM::_fim_page_t*>(raw_page);
+
+    //compare slot's trx id and new id
+    bool is_dirty = leaf_page_ptr->_leaf_page.slot[slot_number].trx_id != trx_id;
+    
+    //write trx id into target slot
+    leaf_page_ptr->_leaf_page.slot[slot_number].trx_id = trx_id;
     buffer_direct_write_page(table_id,page_id,is_dirty);
+    
     return;
 }
