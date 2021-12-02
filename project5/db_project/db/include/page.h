@@ -18,6 +18,7 @@ struct lock_t{
     pthread_cond_t cond = PTHREAD_COND_INITIALIZER; //cond var for sleeping
     lock_t *prev_lock = nullptr; //previous lock in page lock list
     lock_t *nxt_lock = nullptr; //next lock in page lock list
+    lock_t *prev_lock_in_trx = nullptr; //prev lock in trx lock list
     lock_t *nxt_lock_in_trx = nullptr; //next lock in trx lock list
     lock_head_t *sentinel = nullptr; //lock header in lock list
     int64_t record_id; //record id that lock refer to

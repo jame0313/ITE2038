@@ -19,6 +19,40 @@ namespace LM{
         return hash1 ^ hash2 + 0x9e3779b9 + (hash2<<6) + (hash2>>2);
     }
 
+    lock_t* make_and_init_new_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
+        //make new lock
+        lock_t* ret = new lock_t;
+
+        //slot number bitmap for lock compression
+        uint64_t slot_number_bitmask = (1LL<<slot_number);
+
+        //initialize lock object
+        ret->lock_mode = lock_mode;
+        ret->owner_trx_id = trx_id;
+        ret->record_id = key;
+        ret->bitmap = slot_number_bitmask;
+
+        //find page lock list header
+        lock_head_t *lock_head = LM::find_lock_head_in_table(table_id,page_id);
+
+        if(!lock_head){
+            //no lock header case
+            //insert new lock head
+            lock_head = LM::insert_new_lock_head_in_table(table_id,page_id);
+        }
+
+        if(lock_head->table_id != table_id || lock_head->page_id != page_id){
+            //lock table mismatched case
+            delete ret;
+            return nullptr; //error
+        }
+
+        //set sentinel
+        ret->sentinel = lock_head;
+
+        return ret;
+    }
+
     lock_head_t* find_lock_head_in_table(int64_t table_id, pagenum_t pagenum){
         page_id pid = {table_id, pagenum}; //make page_id to use as search key in hash table
         if(LM::lock_table.find(pid)!=LM::lock_table.end()){
@@ -42,6 +76,29 @@ namespace LM{
         return lock_head;
     }
 
+    void append_lock_in_lock_list(lock_t* lock_obj){
+        //get lock head
+        lock_head_t* lock_head = lock_obj->sentinel;
+        
+        if(lock_head->tail){
+            //connect next to tail
+            lock_head->tail->nxt_lock = lock_obj;
+        }
+        else{
+            //there is no lock in the list
+            //current lock should be head
+            lock_head->head = lock_obj;
+        }
+
+        //set tail lock
+        lock_head->tail = lock_obj;
+
+        //make connection in respect to transaction table lock list
+        trx_append_lock_in_trx_list(lock_obj->owner_trx_id, lock_obj);
+
+        return;
+    }
+
     lock_t* find_compatible_lock_in_lock_list(lock_head_t* lock_head, lock_t* lock_obj){
         //find lock already acquired by given txn
         //found lock should be X lock or given lock should be S lock
@@ -60,7 +117,9 @@ namespace LM{
         while(cnt_lock){
             //find same record lock
             //which trx id same and can share with this lock
-            if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 ) && cnt_lock->owner_trx_id == trx_id && ((cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE) || (lock_mode == SHARED_LOCK_MODE))){
+            if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 )
+            && cnt_lock->owner_trx_id == trx_id
+            && ((cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE) || (lock_mode == SHARED_LOCK_MODE))){
                 //can share with this lock
                 return cnt_lock;
             }
@@ -72,6 +131,7 @@ namespace LM{
 
     lock_t* find_same_trx_lock_in_lock_list(lock_head_t* lock_head, int trx_id){
         //find shared lock already acquired by given txn
+        //for lock compression (share lock object)
 
         //start at head lock
         lock_t *cnt_lock = lock_head->head;
@@ -80,7 +140,8 @@ namespace LM{
         while(cnt_lock){
             //find same trx lock
             //which trx id same
-            if(cnt_lock->owner_trx_id == trx_id && cnt_lock->lock_mode == SHARED_LOCK_MODE){
+            if(cnt_lock->owner_trx_id == trx_id
+            && cnt_lock->lock_mode == SHARED_LOCK_MODE){
                 //can share with this lock
                 return cnt_lock;
             }
@@ -130,47 +191,58 @@ namespace LM{
         lock_t* cnt_lock = lock_obj->prev_lock;
 
         //flags for filter first conflicting lock
+        //use bitmap checking record-wise for lock compression
         int waiting_num = 0;
         uint64_t has_prev_shared_lock = 0;
         uint64_t has_prev_exclusive_lock = 0;
 
         //searching phase
         while(cnt_lock){
-            if((has_prev_exclusive_lock & bitmap) == bitmap) break;
             //find same record lock
             //which trx id is not same (same trx lock is not conflicted)
             //and at least one is X lock (only S lock doesn't make conflict)
-            if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 ) && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
+
+            if((has_prev_exclusive_lock & bitmap) == bitmap){
+                //checked all record-wise lock already
+                //no need to check further
+                //end searching phase
+                break;
+            }
+
+            if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 )
+            && cnt_lock->owner_trx_id != trx_id
+            && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
                 if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
                     //current lock is X lock
                     if(((has_prev_shared_lock|has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
-                        //there is conflicting S lock after this lock
-                        //no need to check further (we already checked all S lock)
-                        //get next lock
-                        has_prev_exclusive_lock |= cnt_lock->bitmap;
+                        //there is conflicting lock after this lock
+                        //no need to check this lock (we already checked all lock)
+                        //set visit flag
+                        has_prev_exclusive_lock |= (cnt_lock->bitmap & bitmap);
+                        //get next step
                         cnt_lock = cnt_lock->prev_lock;
                         continue;
                     }
-                    
-                    has_prev_exclusive_lock |= cnt_lock->bitmap;
+                    //set visit flag
+                    has_prev_exclusive_lock |= (cnt_lock->bitmap & bitmap);
                     
                 }
                 else{
                     //current lock is S lock
                     if(((has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
-                        //there is conflicting S lock after this lock
-                        //no need to check further (we already checked all S lock)
-                        //get next lock
-                        has_prev_shared_lock |= cnt_lock->bitmap;
+                        //there is conflicting lock after this lock
+                        //no need to check this lock (we already checked all lock)
+                        //set visit flag
+                        has_prev_shared_lock |= (cnt_lock->bitmap & bitmap);
+                        //get next step
                         cnt_lock = cnt_lock->prev_lock;
                         continue;
                     }
-
-                    has_prev_shared_lock |= cnt_lock->bitmap;
+                    //set visit flag
+                    has_prev_shared_lock |= (cnt_lock->bitmap & bitmap);
                 }
 
                 //current trx waits for cnt_lock's trx(cnt_lock->owner_trx_id)
-                //printf("%d waits for %d\n",trx_id,cnt_lock->owner_trx_id);
                 
                 //count conflicting trx
                 waiting_num ++;
@@ -211,41 +283,54 @@ namespace LM{
         lock_t *cnt_lock = lock_obj->nxt_lock;
 
         //flags for filter first conflicting lock
+        //use bitmap checking record-wise for lock compression
         uint64_t has_prev_shared_lock = 0;
         uint64_t has_prev_exclusive_lock = 0;
 
         //searching phase
         while(cnt_lock){
-            if((has_prev_exclusive_lock & bitmap) == bitmap) break;
             //find same record lock
             //which trx id is not same (same trx lock is not conflicted)
             //and at least one is X lock (only S lock doesn't make conflict)
-            if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 ) && cnt_lock->owner_trx_id != trx_id && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
+
+            if((has_prev_exclusive_lock & bitmap) == bitmap){
+                //checked all record-wise lock already
+                //no need to check further
+                //end searching phase
+                break;
+            }
+
+            if((cnt_lock->record_id == key || (cnt_lock->bitmap & bitmap) != 0 )
+            && cnt_lock->owner_trx_id != trx_id
+            && (cnt_lock->lock_mode | lock_mode) == EXCLUSIVE_LOCK_MODE){
                 if(cnt_lock->lock_mode == EXCLUSIVE_LOCK_MODE){
                     //current lock is X lock
                     if(((has_prev_shared_lock|has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
-                        //there is conflicting S lock after this lock
-                        //no need to check further (we already checked all S lock)
-                        //get next lock
-                        has_prev_exclusive_lock |= cnt_lock->bitmap;
+                        //there is conflicting lock after this lock
+                        //no need to check this lock (we already checked all lock)
+                        //set visit flag
+                        has_prev_exclusive_lock |= (cnt_lock->bitmap & bitmap);
+                        //get next step
                         cnt_lock = cnt_lock->nxt_lock;
                         continue;
                     }
-                    
-                    has_prev_exclusive_lock |= cnt_lock->bitmap;
+                    //set visit flag
+                    has_prev_exclusive_lock |= (cnt_lock->bitmap & bitmap);
                     
                 }
                 else{
                     //current lock is S lock
                     if(((has_prev_exclusive_lock) & (cnt_lock->bitmap)) != 0){
-                        //there is conflicting S lock after this lock
-                        //no need to check further (we already checked all S lock)
-                        //get next lock
-                        has_prev_shared_lock |= cnt_lock->bitmap;
+                        //there is conflicting lock after this lock
+                        //no need to check this lock (we already checked all lock)
+                        //set visit flag
+                        has_prev_shared_lock |= (cnt_lock->bitmap & bitmap);
+                        //get next step
                         cnt_lock = cnt_lock->nxt_lock;
                         continue;
                     }
-                    has_prev_shared_lock |= cnt_lock->bitmap;
+                    //set visit flag
+                    has_prev_shared_lock |= (cnt_lock->bitmap & bitmap);
                 }
 
                 if(cnt_lock->waiting_num > 0){
@@ -263,160 +348,7 @@ namespace LM{
         return;
     }
 
-    lock_t* try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
-        //make new lock
-        lock_t* ret = new lock_t;
-
-        uint64_t slot_number_bitmask = (1LL<<slot_number);
-
-        //initialize lock object
-        ret->lock_mode = lock_mode;
-        ret->owner_trx_id = trx_id;
-        ret->record_id = key;
-        ret->bitmap = slot_number_bitmask;
-
-        //find page lock list header
-        lock_head_t *lock_head = LM::find_lock_head_in_table(table_id,page_id);
-
-        if(!lock_head){
-            //no lock header case
-            //insert new lock head
-            lock_head = LM::insert_new_lock_head_in_table(table_id,page_id);
-        }
-
-        if(lock_head->table_id != table_id || lock_head->page_id != page_id){
-            //lock table mismatched case
-            delete ret;
-            return nullptr; //error
-        }
-
-        //find compatible lock(acquired previous lock in same txn) in the list
-        lock_t* compatible_lock = LM::find_compatible_lock_in_lock_list(lock_head, ret);
-
-        if(compatible_lock){
-            //found compatible lock
-            //just return this lock
-            delete ret;
-            return compatible_lock;
-        }
-
-        //connect new lock
-        ret->prev_lock = lock_head->tail;
-        ret->sentinel = lock_head;
-
-        //check deadlock
-        int conflicting_flag = LM::detect_deadlock(ret, trx_id);
-
-        if(conflicting_flag == -1){
-            //deadlock occurred
-            delete ret;
-            return nullptr; //error
-        }
-
-        if(conflicting_flag == 0){
-            page_t** tmp_page = new page_t*;
-
-            int acquired_trx_id = idx_get_trx_id_in_slot(table_id, page_id, slot_number, tmp_page);
-
-            if(acquired_trx_id == trx_id){
-                //found compatible lock
-                //just return this lock
-                idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
-                delete tmp_page;
-                delete ret;
-                return (lock_t*)1;
-            }
-
-            int is_valid = trx_is_this_trx_valid(acquired_trx_id);
-
-            if(is_valid >= 0){
-                if(is_valid > 0){
-                    //do explicit lock
-                    idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
-                    delete tmp_page;
-                    delete ret;
-                    lock_t* prev_lock = new lock_t;
-                    //initialize prev lock object
-                    prev_lock->lock_mode = EXCLUSIVE_LOCK_MODE;
-                    prev_lock->owner_trx_id = acquired_trx_id;
-                    prev_lock->record_id = key;
-                    prev_lock->bitmap = slot_number_bitmask;
-                    //connect prev lock
-                    prev_lock->prev_lock = lock_head->tail;
-                    prev_lock->sentinel = lock_head;
-                    if(lock_head->tail){
-                        //connect next to tail
-                        lock_head->tail->nxt_lock = prev_lock;
-                    }
-                    else{
-                        //there is no lock in the list
-                        //current lock should be head
-                        lock_head->head = prev_lock;
-                    }
-                    //set tail lock
-                    lock_head->tail = prev_lock;
-                    //make connection in respect to transaction table lock list
-                    trx_append_lock_in_trx_list(acquired_trx_id, prev_lock);
-                    return LM::try_to_acquire_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
-                }
-                else{
-                    if(lock_mode == SHARED_LOCK_MODE){
-                        idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
-                        delete tmp_page;
-                        //get same trx lock for lock compression
-                        lock_t* same_trx_lock = LM::find_same_trx_lock_in_lock_list(lock_head, trx_id);
-                        if(same_trx_lock){
-                            same_trx_lock->bitmap |= slot_number_bitmask;
-                            delete ret;
-                            return same_trx_lock;
-                        }
-                    }
-                    if(lock_mode == EXCLUSIVE_LOCK_MODE){
-                        //do implicit lock
-                        idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id, *tmp_page);
-                        delete tmp_page;
-                        delete ret;
-                        return (lock_t*)1;
-                    }
-                }
-            }
-            else{
-                //error
-            }
-        }
-
-        if(lock_head->tail){
-            //connect next to tail
-            lock_head->tail->nxt_lock = ret;
-        }
-        else{
-            //there is no lock in the list
-            //current lock should be head
-            lock_head->head = ret;
-        }
-
-        //set tail lock
-        lock_head->tail = ret;
-
-        //make connection in respect to transaction table lock list
-        trx_append_lock_in_trx_list(trx_id, ret);
-
-        if(conflicting_flag > 0){
-            //there is conflicting operation
-
-            //set waiting num
-            ret->waiting_num = conflicting_flag;
-
-            //wait for all conflicting locks released
-            while(ret->waiting_num > 0){
-                pthread_cond_wait(&ret->cond, &LM::lock_manager_latch);
-            }
-        }
-
-        return ret; //return acquired lock
-    }
-
-    int release_acquired_lock(lock_t* lock_obj){
+    void remove_lock_from_lock_list(lock_t* lock_obj){
         //get lock header
         lock_head_t *lock_head = lock_obj->sentinel;
 
@@ -442,6 +374,151 @@ namespace LM{
             lock_head->tail = lock_obj->prev_lock;
         }
 
+        return;
+    }
+
+    int try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
+        
+        lock_t* ret = LM::make_and_init_new_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
+
+        lock_head_t *lock_head = ret->sentinel;
+
+        //find compatible lock(acquired previous lock in same txn) in the list
+        lock_t* compatible_lock = LM::find_compatible_lock_in_lock_list(lock_head, ret);
+
+        if(compatible_lock){
+            //found compatible lock
+            //just return this lock
+            delete ret;
+            return 0;
+        }
+
+        //connect to lock tail
+        ret->prev_lock = lock_head->tail;
+
+        //check deadlock
+        int conflicting_flag = LM::detect_deadlock(ret, trx_id);
+
+        if(conflicting_flag == -1){
+            //deadlock occurred
+            delete ret;
+            return -1; //error
+        }
+
+        if(conflicting_flag == 0){
+            //there is no conflicting lock in the list
+            //need to check implicit lock
+            
+            //tmp page for read and write slot in index layer
+            page_t** tmp_page = new page_t*;
+
+            //get trx id in current slot for implicit locking
+            int acquired_trx_id = idx_get_trx_id_in_slot(table_id, page_id, slot_number, tmp_page);
+
+            //release right now
+            idx_set_trx_id_in_slot(table_id, page_id, slot_number, acquired_trx_id, *tmp_page);
+            delete tmp_page;
+
+            if(acquired_trx_id == trx_id){
+                //found compatible implicit lock
+                //just return this lock
+                delete ret;
+                return 0;
+            }
+
+            //check trx id in slot is alive
+            int is_valid = trx_is_this_trx_valid(acquired_trx_id);
+            
+            if(is_valid > 0){
+                //there is implicit lock in slot
+                //need explicit lock for both txn
+
+                //make implicit lock to explicit lock
+                lock_t* prev_lock = make_and_init_new_lock_object(table_id, page_id, key, slot_number, acquired_trx_id, EXCLUSIVE_LOCK_MODE);
+                
+                //connect prev lock
+                prev_lock->prev_lock = lock_head->tail;
+
+                //append prev lock into page lock list and trx lock list
+                LM::append_lock_in_lock_list(prev_lock);
+
+                //delete lock
+                delete ret;
+
+                //try lock again
+                return LM::try_to_acquire_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
+            }
+            else if(is_valid == 0){
+                //there is no implicit lock in slot
+            }
+
+            if(is_valid < 0){
+                //error in trx manager
+                delete ret;
+                return -1;
+            }
+        }
+
+        //append lock into page lock list and trx lock list
+        LM::append_lock_in_lock_list(ret);
+
+        if(conflicting_flag > 0){
+            //there is conflicting operation
+
+            //set waiting num
+            ret->waiting_num = conflicting_flag;
+
+            //wait for all conflicting locks released
+            while(ret->waiting_num > 0){
+                pthread_cond_wait(&ret->cond, &LM::lock_manager_latch);
+            }
+        }
+
+        if(lock_mode == SHARED_LOCK_MODE){
+            //do lock compression
+            //get same trx lock for lock compression 
+            lock_t* same_trx_lock = LM::find_same_trx_lock_in_lock_list(lock_head, trx_id);
+
+            if(same_trx_lock && same_trx_lock != ret){
+                //find same trx lock
+
+                //set bit flag on
+                same_trx_lock->bitmap |= ret->bitmap;
+
+                //remove current lock object
+                LM::remove_lock_from_lock_list(ret);
+
+                //disconnect in respect to transaction table lock list
+                trx_remove_lock_in_trx_list(ret->owner_trx_id, ret);
+
+                //delete ret;
+                return 0;
+            }
+        }
+        if(lock_mode == EXCLUSIVE_LOCK_MODE){
+            //do implicit lock
+
+            //tmp page for read and write slot in index layer
+            page_t** tmp_page = new page_t*;
+
+            //read slot for implicit locking
+            idx_get_trx_id_in_slot(table_id, page_id, slot_number, tmp_page);
+
+            //write slot for implicit locking
+            idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id, *tmp_page);
+
+            delete tmp_page;
+            return 0;
+        }
+
+        return 0; //success
+    }
+
+    int release_acquired_lock(lock_t* lock_obj){
+        
+        //remove lock from lock list
+        LM::remove_lock_from_lock_list(lock_obj);
+        
         //find conflicting lock and wake it up when there is no longer conflicting trx
         LM::wake_conflicting_lock_in_lock_list(lock_obj);
 
@@ -463,21 +540,20 @@ int init_lock_table(void){
     return 0;
 }
 
-lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
+int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
     int status_code; //check pthread error
 
     //start critical section
     status_code = pthread_mutex_lock(&LM::lock_manager_latch);
-    if(status_code) return nullptr; //error
+    if(status_code) return -1; //error
 
     //acquire lock
-    lock_t* acquired_lock = LM::try_to_acquire_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
+    int acquired_lock = LM::try_to_acquire_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
     
     //end critical section
     status_code = pthread_mutex_unlock(&LM::lock_manager_latch);
     if(status_code){
-        delete acquired_lock;
-        return nullptr; //error
+        return -1; //error
     }
 
     //return lock object

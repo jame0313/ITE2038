@@ -64,7 +64,11 @@ namespace TM{
 
     void append_lock_in_table(int trx_id, lock_t* lock_obj){
         if(TM::trx_table[trx_id].last_lock_in_trx && TM::trx_table[trx_id].last_lock_in_trx->waiting_num > 0){
+            //append at the front
             lock_obj->nxt_lock_in_trx = TM::trx_table[trx_id].nxt_lock_in_trx;
+            TM::trx_table[trx_id].nxt_lock_in_trx->prev_lock_in_trx = lock_obj;
+
+            //set given object as first lock
             TM::trx_table[trx_id].nxt_lock_in_trx = lock_obj;
             return;
         }
@@ -72,6 +76,7 @@ namespace TM{
             //there is lock in the trx list
             //connect with last lock in old list
             TM::trx_table[trx_id].last_lock_in_trx->nxt_lock_in_trx = lock_obj;
+            lock_obj->prev_lock_in_trx = TM::trx_table[trx_id].last_lock_in_trx;
         }
         else{
             //there is no lock in the trx list
@@ -80,6 +85,31 @@ namespace TM{
         }
         //set given object as last lock
         TM::trx_table[trx_id].last_lock_in_trx = lock_obj;
+        return;
+    }
+
+    void remove_lock_in_table(int trx_id, lock_t* lock_obj){
+        if(lock_obj->prev_lock_in_trx){
+            //predecessor lock existed
+            //connect it with nxt lock
+            lock_obj->prev_lock_in_trx->nxt_lock_in_trx = lock_obj->nxt_lock_in_trx;
+        }
+        else{
+            //current lock is first lock in the list
+            //update head lock
+            TM::trx_table[trx_id].nxt_lock_in_trx = lock_obj->nxt_lock_in_trx;
+        }
+
+        if(lock_obj->nxt_lock_in_trx){
+            //successor lock existed
+            //connect it with prev lock
+            lock_obj->nxt_lock_in_trx->prev_lock_in_trx = lock_obj->prev_lock_in_trx;
+        }
+        else{
+            //current lock is last lock in the list
+            //update tail lock
+            TM::trx_table[trx_id].last_lock_in_trx = lock_obj->prev_lock_in_trx;
+        }
         return;
     }
 
@@ -253,6 +283,30 @@ int trx_append_lock_in_trx_list(int trx_id, lock_t* lock_obj){
     if(TM::is_trx_valid(trx_id)){
         //append lock in the list
         TM::append_lock_in_table(trx_id,lock_obj);
+    }
+    else{
+        //not valid case (error)
+        trx_id = 0;
+    }
+
+    //end critical section
+    status_code = pthread_mutex_unlock(&TM::transaction_manager_latch);
+    if(status_code) return 0; //error
+    
+    return trx_id;
+}
+
+int trx_remove_lock_in_trx_list(int trx_id, lock_t* lock_obj){
+    int status_code; //check pthread error
+
+    //start critical section
+    status_code = pthread_mutex_lock(&TM::transaction_manager_latch);
+    if(status_code) return 0; //error
+
+    //check current trx is valid
+    if(TM::is_trx_valid(trx_id)){
+        //append lock in the list
+        TM::remove_lock_in_table(trx_id,lock_obj);
     }
     else{
         //not valid case (error)

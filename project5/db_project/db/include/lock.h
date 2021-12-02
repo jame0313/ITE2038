@@ -20,7 +20,7 @@ int init_lock_table(void);
 //If there is no predecessor’s conflicting lock object, return the address of the new lock object.
 //If an error occurs, return NULL.
 //lock_mode : 0 (SHARED) or 1 (EXCLUSIVE)
-lock_t* lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
+int lock_acquire(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
 
 //Remove the lock_obj from the lock list.
 //If there is a successor’s lock waiting for the transaction releasing the lock, wake up the successor.
@@ -88,7 +88,7 @@ namespace LM{
     //If there is a predecessor’s conflicting lock object in the lock list, sleep until the predecessor releases its lock.
     //If there is no predecessor’s conflicting lock object, return the address of the new lock object.
     //If an error occurs, return NULL
-    lock_t* try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
+    int try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
 
     //Remove the lock_obj from the lock list.
     //If there is a successor’s lock waiting for the transaction releasing the lock, wake up the successor.

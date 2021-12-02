@@ -117,8 +117,8 @@ namespace FIM{
                 //find record
                 if(ret_val){
                     //try to acquire shared lock
-                    lock_t* shared_lock = lock_acquire(table_id, leaf_page_number, key, i, trx_id, SHARED_LOCK_MODE);
-                    if(!shared_lock){
+                    int shared_lock = lock_acquire(table_id, leaf_page_number, key, i, trx_id, SHARED_LOCK_MODE);
+                    if(shared_lock == -1){
                         //acquire failed case
                         trx_abort_txn(trx_id); //abort txn
                         return -1;
@@ -193,8 +193,8 @@ namespace FIM{
                 //find record
                 if(values){
                     //try to acquire exclusive lock
-                    lock_t* exclusive_lock = lock_acquire(table_id, leaf_page_number, key, i, trx_id, EXCLUSIVE_LOCK_MODE);
-                    if(!exclusive_lock){
+                    int exclusive_lock = lock_acquire(table_id, leaf_page_number, key, i, trx_id, EXCLUSIVE_LOCK_MODE);
+                    if(exclusive_lock == -1){
                         //acquire failed case
                         trx_abort_txn(trx_id); //abort txn
                         return -1;

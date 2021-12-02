@@ -27,6 +27,8 @@ int trx_abort_txn(int trx_id);
 //Return the transaction id if success, otherwise return 0.
 int trx_append_lock_in_trx_list(int trx_id, lock_t* lock_obj);
 
+int trx_remove_lock_in_trx_list(int trx_id, lock_t* lock_obj);
+
 //Append log to trx log list
 //which means old_value changes into new_value
 //Return the transaction id if success, otherwise return 0.

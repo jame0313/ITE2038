@@ -63,8 +63,7 @@ namespace DSM{
         if(pwrite64(fd,src,sizeof(page_t),pagenum*PAGE_SIZE)!=sizeof(page_t)){
             throw "write system call failed!";
         }
-        sync();
-        //if(fsync(fd)==-1) throw "sync system call failed!";
+        if(fsync(fd)==-1) throw "sync system call failed!";
     }
 
     void load_page_from_file(int fd, pagenum_t pagenum, page_t* dest){
