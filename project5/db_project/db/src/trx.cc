@@ -147,16 +147,12 @@ namespace TM{
     void remove_trx_log(int trx_id){
         //get trx log given txn id
         auto& v = TM::trx_table[trx_id].trx_log;
-        page_t** tmp_page = new page_t*;
         for(auto log : v){
-            //release implicit lock
-            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0);
             //delete char string and log object
             delete[] log->old_value;
             delete[] log->new_value;
             delete log;
         }
-        delete tmp_page;
         v.clear(); //clear list
     }
 
@@ -168,6 +164,16 @@ namespace TM{
         lock_release_all(cnt_lock);
 
         return;
+    }
+
+    void release_all_implicit_lock(int trx_id){
+        //get trx log given txn id
+        auto& v = TM::trx_table[trx_id].trx_log;
+        for(auto log : v){
+            //release implicit lock
+            idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0);
+        }
+        v.clear(); //clear list
     }
 
     void rollback_trx_log(int trx_id){
@@ -226,6 +232,7 @@ int trx_commit_txn(int trx_id){
     if(TM::is_trx_valid(trx_id)){
         //release phase
         TM::release_all_locks_in_trx(trx_id);
+        TM::release_all_implicit_lock(trx_id);
 
         //delete entry
         TM::remove_trx_log(trx_id);
@@ -256,6 +263,7 @@ int trx_abort_txn(int trx_id){
     if(TM::is_trx_valid(trx_id)){
         TM::rollback_trx_log(trx_id); //rollback effects
         TM::release_all_locks_in_trx(trx_id); //release all lock
+        TM::release_all_implicit_lock(trx_id);
 
         //delete entry
         TM::remove_trx_log(trx_id);
@@ -394,6 +402,7 @@ void close_trx_manager(){
         int trx_id = it.second.trx_id; //get trx id
         TM::rollback_trx_log(trx_id); //rollback uncommited result
         TM::release_all_locks_in_trx(trx_id); //release all locks
+        TM::release_all_implicit_lock(trx_id);
         TM::remove_trx_log(trx_id); //remove log
     }
 

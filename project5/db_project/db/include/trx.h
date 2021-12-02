@@ -115,6 +115,9 @@ namespace TM{
     //of given trx_id's trx table entry
     void release_all_locks_in_trx(int trx_id);
 
+    //release all implicit lock in slot
+    void release_all_implicit_lock(int trx_id);
+
     //rollback all effects made by given trx
     //by using log list in corresponding trx table entry
     void rollback_trx_log(int trx_id);

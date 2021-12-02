@@ -395,6 +395,26 @@ namespace LM{
         return;
     }
 
+    void try_to_lock_compression(lock_t* lock_obj){
+        //get same trx lock for lock compression 
+        lock_t* same_trx_lock = LM::find_same_trx_lock_in_lock_list(lock_obj->sentinel, lock_obj->owner_trx_id);
+
+        if(same_trx_lock && same_trx_lock != lock_obj){
+           //find same trx lock
+
+            //set bit flag on
+            same_trx_lock->bitmap |= lock_obj->bitmap;
+
+            //remove current lock object
+            LM::remove_lock_from_lock_list(lock_obj);
+
+            //disconnect in respect to transaction table lock list
+            trx_remove_lock_in_trx_list(lock_obj->owner_trx_id, lock_obj);
+
+            delete lock_obj;
+        }
+    }
+
 
 
     int try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
@@ -488,34 +508,14 @@ namespace LM{
 
         if(lock_mode == SHARED_LOCK_MODE){
             //do lock compression
-
-            //get same trx lock for lock compression 
-            lock_t* same_trx_lock = LM::find_same_trx_lock_in_lock_list(lock_head, trx_id);
-
-            if(same_trx_lock && same_trx_lock != ret){
-                //find same trx lock
-
-                //set bit flag on
-                same_trx_lock->bitmap |= ret->bitmap;
-
-                //remove current lock object
-                LM::remove_lock_from_lock_list(ret);
-
-                //disconnect in respect to transaction table lock list
-                trx_remove_lock_in_trx_list(ret->owner_trx_id, ret);
-
-                delete ret;
-                return 0;
-            }
+            
+            try_to_lock_compression(ret);
         }
-
         if(lock_mode == EXCLUSIVE_LOCK_MODE){
             //do implicit lock
 
             //write slot for implicit locking
             idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id);
-
-            return 0;
         }
 
         return 0; //success
