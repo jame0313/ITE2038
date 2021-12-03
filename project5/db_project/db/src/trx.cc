@@ -64,7 +64,7 @@ namespace TM{
 
     void append_lock_in_table(int trx_id, lock_t* lock_obj){
         //case for implicit lock
-        /*if(TM::trx_table[trx_id].last_lock_in_trx && TM::trx_table[trx_id].last_lock_in_trx->waiting_num > 0){
+        if(TM::trx_table[trx_id].last_lock_in_trx && TM::trx_table[trx_id].last_lock_in_trx->waiting_num > 0){
             //previous last lock is sleeping state
             //this case can occured due to
             //converting implicit lock to explicit lock
@@ -77,7 +77,7 @@ namespace TM{
             //set given object as first lock
             TM::trx_table[trx_id].nxt_lock_in_trx = lock_obj;
             return;
-        }*/
+        }
 
         if(TM::trx_table[trx_id].last_lock_in_trx){
             //there is lock in the trx list
@@ -235,7 +235,7 @@ int trx_commit_txn(int trx_id){
     if(TM::is_trx_valid(trx_id)){
         //release phase
         TM::release_all_locks_in_trx(trx_id);
-        //TM::release_all_implicit_lock(trx_id);
+        TM::release_all_implicit_lock(trx_id);
 
         //delete entry
         TM::remove_trx_log(trx_id);
@@ -266,7 +266,7 @@ int trx_abort_txn(int trx_id){
     if(TM::is_trx_valid(trx_id)){
         TM::rollback_trx_log(trx_id); //rollback effects
         TM::release_all_locks_in_trx(trx_id); //release all lock
-        //TM::release_all_implicit_lock(trx_id);
+        TM::release_all_implicit_lock(trx_id);
 
         //delete entry
         TM::remove_trx_log(trx_id);
@@ -405,7 +405,7 @@ void close_trx_manager(){
         int trx_id = it.second.trx_id; //get trx id
         TM::rollback_trx_log(trx_id); //rollback uncommited result
         TM::release_all_locks_in_trx(trx_id); //release all locks
-        //TM::release_all_implicit_lock(trx_id);
+        TM::release_all_implicit_lock(trx_id);
         TM::remove_trx_log(trx_id); //remove log
     }
 
