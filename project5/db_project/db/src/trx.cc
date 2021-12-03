@@ -63,8 +63,11 @@ namespace TM{
     }
 
     void append_lock_in_table(int trx_id, lock_t* lock_obj){
+        //case for implicit lock
         if(TM::trx_table[trx_id].last_lock_in_trx && TM::trx_table[trx_id].last_lock_in_trx->waiting_num > 0){
-            //last lock is sleeping state
+            //previous last lock is sleeping state
+            //this case can occured due to
+            //converting implicit lock to explicit lock
 
             //append at the front instead of end
             //for deadlock detection implementation
@@ -75,6 +78,7 @@ namespace TM{
             TM::trx_table[trx_id].nxt_lock_in_trx = lock_obj;
             return;
         }
+
         if(TM::trx_table[trx_id].last_lock_in_trx){
             //there is lock in the trx list
             //connect with last lock in old list

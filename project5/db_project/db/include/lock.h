@@ -109,7 +109,7 @@ namespace LM{
     //and append into page lock list and trx list
     void convert_implicit_lock_to_explicit_lock(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id);
 
-    //try to lock compression
+    //try to do lock compression
     //do lock compression where there is lock belonged to same trx
     //remove lock obj when lock compression occurred
     void try_to_lock_compression(lock_t* lock_obj);

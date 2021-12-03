@@ -415,8 +415,6 @@ namespace LM{
         }
     }
 
-
-
     int try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode){
         
         //make new lock
