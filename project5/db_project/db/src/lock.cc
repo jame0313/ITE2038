@@ -451,7 +451,7 @@ namespace LM{
             return -1; //error
         }
 
-        if(conflicting_flag == 0){
+        /*if(conflicting_flag == 0){
             //there is no conflicting lock in the list
             //need to check implicit lock
 
@@ -487,7 +487,7 @@ namespace LM{
                 //try lock again
                 return LM::try_to_acquire_lock_object(table_id, page_id, key, slot_number, trx_id, lock_mode);
             }
-        }
+        }*/
 
         //append lock into page lock list and trx lock list
         LM::append_lock_in_lock_list(ret);
@@ -503,7 +503,7 @@ namespace LM{
                 pthread_cond_wait(&ret->cond, &LM::lock_manager_latch);
             }
         }
-
+        /*
         if(lock_mode == SHARED_LOCK_MODE){
             //do lock compression
             
@@ -514,7 +514,7 @@ namespace LM{
 
             //write slot for implicit locking
             idx_set_trx_id_in_slot(table_id, page_id, slot_number, trx_id);
-        }
+        }*/
 
         return 0; //success
     }
