@@ -177,7 +177,6 @@ namespace TM{
             //release implicit lock
             idx_set_trx_id_in_slot(log->table_id, log->page_id,log->slot_number, 0);
         }
-        v.clear(); //clear list
     }
 
     void rollback_trx_log(int trx_id){
