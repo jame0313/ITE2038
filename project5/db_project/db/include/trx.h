@@ -40,6 +40,9 @@ int trx_add_log(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_
 //Return lock's pointer if success, otherwise return null.
 lock_t* trx_get_last_lock_in_trx_list(int trx_id);
 
+//check given transaction id is valid
+//return 1 if valid or 0 if invalid
+//return -1 if the error occured in transaction manager
 int trx_is_this_trx_valid(int trx_id);
 
 //Rollback all uncommitted result and destroy trx table

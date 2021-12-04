@@ -381,7 +381,7 @@ namespace LM{
 
     void convert_implicit_lock_to_explicit_lock(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id){
         //make implicit lock to explicit lock
-        lock_t* explicit_lock = make_and_init_new_lock_object(table_id, page_id, key, slot_number, trx_id, EXCLUSIVE_LOCK_MODE);
+        lock_t* explicit_lock = LM::make_and_init_new_lock_object(table_id, page_id, key, slot_number, trx_id, EXCLUSIVE_LOCK_MODE);
                 
         //connect with lock header
         LM::connect_with_lock_head(table_id,page_id,explicit_lock);

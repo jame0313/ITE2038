@@ -116,8 +116,8 @@ namespace LM{
     
     //Allocate and append a new lock object to the lock list of the record having the page id and the key.
     //If there is a predecessor’s conflicting lock object in the lock list, sleep until the predecessor releases its lock.
-    //If there is no predecessor’s conflicting lock object, return the address of the new lock object.
-    //If an error occurs, return NULL
+    //If there is no predecessor’s conflicting lock object, return 0.
+    //If an error occurs, return -1
     int try_to_acquire_lock_object(int64_t table_id, pagenum_t page_id, int64_t key, uint32_t slot_number, int trx_id, int lock_mode);
 
     //Remove the lock_obj from the lock list.

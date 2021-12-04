@@ -1206,6 +1206,7 @@ int idx_find_by_key_trx(int64_t table_id, int64_t key, char *ret_val, uint16_t *
     }
     catch(const char *e){
         perror(e);
+        trx_abort_txn(trx_id); //abort txn
         return -1;
     }
 }
@@ -1226,6 +1227,7 @@ int idx_update_by_key_trx(int64_t table_id, int64_t key, char *values, uint16_t 
     }
     catch(const char *e){
         perror(e);
+        trx_abort_txn(trx_id); //abort txn
         return -1;
     }
 }
