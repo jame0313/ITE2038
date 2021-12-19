@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <utility>
+#include <regex>
 
 #define DEFAULT_PAGE_NUMBER 2560 //10MiB INIT DB SIZE
 #define MAX_DB_FILE_NUMBER 32 //max number of table

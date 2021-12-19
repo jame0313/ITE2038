@@ -137,11 +137,18 @@ int64_t file_open_table_file(const char* pathname){
     if(DSM::DB_FILE_LIST_SIZE >= MAX_DB_FILE_NUMBER)
         throw "DB FILE LIST IS FULL";
     
+    std::string path_string(rpath);
+    std::regex re("DATA\\d*\\.");
+    std::smatch match;
+    std::regex_search(path_string, match, re);
+    std::string filename = match.str();
+    int64_t table_id = stoi(filename.substr(4, filename.length() - 5));
+    
     //insert file descriptor and realpath into list
     //to use for check duplicated open and close
-    DSM::DB_FILE_LIST[DSM::DB_FILE_LIST_SIZE++] = {(int64_t)fd, rpath, fd};
+    DSM::DB_FILE_LIST[DSM::DB_FILE_LIST_SIZE++] = {table_id, rpath, fd};
     
-    return (int64_t)fd; //set table_id as fd just for now
+    return table_id; //set table_id as fd just for now
 }
 
 pagenum_t file_alloc_page(int64_t table_id){

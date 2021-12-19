@@ -1,10 +1,14 @@
 #include "api.h"
 
-int init_db(int num_buf){
+int init_db(int num_buf, int flag, int log_num, char *log_path, char *logmsg_path){
     int status_code = init_buffer(num_buf);
     init_lock_table();
     init_trx_manager();
     return status_code;
+}
+
+int init_db(int num_buf){
+    return init_db(num_buf, 3, 0, NULL, NULL);
 }
 
 int shutdown_db(){
@@ -56,4 +60,8 @@ int trx_begin(void){
 
 int trx_commit(int trx_id){
     return trx_commit_txn(trx_id);
+}
+
+int trx_abort(int trx_id){
+    return trx_abort_txn(trx_id);
 }

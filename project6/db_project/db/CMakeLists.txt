@@ -8,6 +8,7 @@ set(DB_SOURCES
   ${DB_SOURCE_DIR}/wildcard.cc
   ${DB_SOURCE_DIR}/trx.cc
   ${DB_SOURCE_DIR}/lock.cc
+  ${DB_SOURCE_DIR}/log.cc
   # Add your sources here
   # ${DB_SOURCE_DIR}/foo/bar/your_source.cc
   )
@@ -23,6 +24,7 @@ set(DB_HEADERS
   ${DB_HEADER_DIR}/wildcard.h
   ${DB_HEADER_DIR}/trx.h
   ${DB_HEADER_DIR}/lock.h
+  ${DB_HEADER_DIR}/log.h
   # Add your headers here
   # ${DB_HEADER_DIR}/foo/bar/your_header.h
   )

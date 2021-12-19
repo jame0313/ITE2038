@@ -63,7 +63,8 @@ namespace FIM{
         pagenum_t free_page_number; //point to the first free page(head of free page list) or indicate no free page if 0
         uint64_t number_of_pages; //the number of pages paginated in db file
         pagenum_t root_page_number; //pointing the root page within the data file or indicate no root page if 0
-        uint8_t __reserved__[PAGE_SIZE - 2*sizeof(pagenum_t) - sizeof(uint64_t)]; //not used for now
+        uint64_t page_lsn; //page lsn
+        uint8_t __reserved__[PAGE_SIZE - 2*sizeof(pagenum_t) - 2*sizeof(uint64_t)]; //not used for now
     };
 
     //internal, leaf page header structure
@@ -71,6 +72,8 @@ namespace FIM{
         pagenum_t parent_page_number; //point to parent page or indicate root if 0
         uint32_t is_leaf; //0 if internal page, 1 if leaf page
         uint32_t number_of_keys; //number of keys within page
+        uint8_t __reserved__[8];
+        uint64_t page_lsn; //page lsn
     };
 
     //leaf page's slot structure (find record in page)
